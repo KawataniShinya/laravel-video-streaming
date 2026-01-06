@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Storage;
+use Inertia\Inertia;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class VideoController extends Controller
@@ -32,7 +33,7 @@ class VideoController extends Controller
             }
         }
 
-        return view('videos.index', compact('files'));
+        return Inertia::render('Videos/Index', compact('files'));
     }
 
     public function watch($filename)
@@ -47,10 +48,10 @@ class VideoController extends Controller
         if ($ext === 'mp4') {
             // Check for faststart (simple check, or just assume)
             // For now, we just play it.
-            return view('videos.watch_mp4', compact('filename'));
+            return Inertia::render('Videos/WatchMp4', compact('filename'));
         } elseif ($ext === 'm2ts') {
             $this->ensureHls($filename);
-            return view('videos.watch_hls', compact('filename'));
+            return Inertia::render('Videos/WatchHls', compact('filename'));
         }
 
         abort(404);
@@ -62,7 +63,7 @@ class VideoController extends Controller
         if (!File::exists($path)) {
             abort(404);
         }
-        
+
         $stream = new VideoStream($path);
         $stream->start();
     }
@@ -81,15 +82,15 @@ class VideoController extends Controller
             // Start conversion in background
             // Using nohup to let it run in background
             $input = $this->videoPath . '/' . $filename;
-            
+
             // Basic HLS conversion
             // -c:v libx264 -c:a aac: transcode to standard HLS compatible formats
             // -f hls: format
             // -hls_time 10: segment duration
             // -hls_list_size 0: keep all segments in playlist
-            
+
             $cmd = "nohup ffmpeg -i " . escapeshellarg($input) . " -c:v libx264 -c:a aac -f hls -hls_time 10 -hls_list_size 0 " . escapeshellarg($playlist) . " > /dev/null 2>&1 &";
-            
+
             Process::run($cmd);
         }
     }
@@ -98,7 +99,7 @@ class VideoController extends Controller
     {
         // $filename is the original m2ts filename (folder name in hls cache)
         // $file is index.m3u8 or segment.ts
-        
+
         $nameWithoutExt = pathinfo($filename, PATHINFO_FILENAME);
         $path = $this->hlsCachePath . '/' . $nameWithoutExt . '/' . $file;
 
