@@ -11,6 +11,7 @@ services:
       PHP_IDE_CONFIG: serverName=server-xdebug
     volumes:
       - ./app:/var/www/app
+      - ./videos:/videos
     networks:
       sample-network:
 

@@ -3,7 +3,7 @@ FROM php:8.4.16-fpm-bookworm
 COPY --from=composer:2.9.3 /usr/bin/composer /usr/bin/composer
 
 RUN apt update
-RUN apt install -y procps vim less git zip unzip
+RUN apt install -y procps vim less git zip unzip ffmpeg
 
 # MySQL
 RUN docker-php-ext-install pdo_mysql
