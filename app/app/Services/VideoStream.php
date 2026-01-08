@@ -2,8 +2,6 @@
 
 namespace App\Services;
 
-use Exception;
-
 class VideoStream
 {
     private $path = "";
