@@ -27,7 +27,7 @@ Route::middleware('auth')->group(function () {
 
 require __DIR__.'/auth.php';
 
-Route::get('/videos', [VideoController::class, 'index'])->name('videos.index');
-Route::get('/watch/{filename}', [VideoController::class, 'watch'])->name('videos.watch');
-Route::get('/stream/{filename}', [VideoController::class, 'stream'])->name('videos.stream');
-Route::get('/hls/{filename}/{file}', [VideoController::class, 'serveHls'])->where('file', '.*')->name('videos.hls');
+Route::get('/videos/{path?}', [VideoController::class, 'index'])->where('path', '.*')->name('videos.index');
+Route::get('/watch/{path}', [VideoController::class, 'watch'])->where('path', '.*')->name('videos.watch');
+Route::get('/stream/{path}', [VideoController::class, 'stream'])->where('path', '.*')->name('videos.stream');
+Route::get('/hls/{hash}/{file}', [VideoController::class, 'serveHls'])->name('videos.hls');

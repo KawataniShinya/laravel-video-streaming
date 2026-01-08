@@ -6,13 +6,11 @@ use App\Services\VideoStream;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Process;
-use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
-use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class VideoController extends Controller
 {
-    private $videoPath = '/videos';
+    private $videoRoot = '/videos';
     private $hlsCachePath;
 
     public function __construct()
@@ -20,58 +18,138 @@ class VideoController extends Controller
         $this->hlsCachePath = storage_path('hls');
     }
 
-    public function index()
+    /**
+     * Resolve the real path and ensure it's within the video root.
+     */
+    private function resolvePath($subpath)
     {
-        $files = [];
-        if (File::exists($this->videoPath)) {
-            $allFiles = File::files($this->videoPath);
-            foreach ($allFiles as $file) {
-                $ext = strtolower($file->getExtension());
-                if (in_array($ext, ['mp4', 'm2ts'])) {
-                    $files[] = $file->getFilename();
-                }
-            }
+        // Prevent directory traversal
+        if (strpos($subpath, '..') !== false) {
+            return null;
         }
 
-        return Inertia::render('Videos/Index', compact('files'));
+        $path = $this->videoRoot;
+        if ($subpath) {
+            $path .= '/' . $subpath;
+        }
+
+        // Check if file/dir exists
+        if (!File::exists($path)) {
+            return null;
+        }
+
+        // Use realpath to strictly verify it is inside videoRoot
+        $realPath = realpath($path);
+        $realRoot = realpath($this->videoRoot);
+
+        if ($realPath === false || strpos($realPath, $realRoot) !== 0) {
+            return null;
+        }
+
+        return $path;
     }
 
-    public function watch($filename)
+    public function index($path = null)
     {
-        $path = $this->videoPath . '/' . $filename;
-        if (!File::exists($path)) {
+        $fullPath = $this->resolvePath($path);
+
+        if (!$fullPath || !File::isDirectory($fullPath)) {
+            // If it's a file, redirect to watch
+            if ($fullPath && File::isFile($fullPath)) {
+                return redirect()->route('videos.watch', ['path' => $path]);
+            }
             abort(404);
         }
 
-        $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+        $items = [];
+        // Scan directories
+        $directories = File::directories($fullPath);
+        foreach ($directories as $dir) {
+            $items[] = [
+                'type' => 'folder',
+                'name' => basename($dir),
+                'path' => ($path ? $path . '/' : '') . basename($dir),
+            ];
+        }
+
+        // Scan files
+        $files = File::files($fullPath);
+        foreach ($files as $file) {
+            $ext = strtolower($file->getExtension());
+            if (in_array($ext, ['mp4', 'm2ts'])) {
+                $items[] = [
+                    'type' => 'file',
+                    'name' => $file->getFilename(),
+                    'path' => ($path ? $path . '/' : '') . $file->getFilename(),
+                    'ext'  => $ext
+                ];
+            }
+        }
+
+        // Breadcrumbs
+        $breadcrumbs = [];
+        if ($path) {
+            $parts = explode('/', $path);
+            $accumulated = '';
+            foreach ($parts as $part) {
+                if ($part === '') continue;
+                $accumulated .= ($accumulated ? '/' : '') . $part;
+                $breadcrumbs[] = ['name' => $part, 'path' => $accumulated];
+            }
+        }
+
+        return Inertia::render('Videos/Index', [
+            'items' => $items,
+            'currentPath' => $path,
+            'breadcrumbs' => $breadcrumbs
+        ]);
+    }
+
+    public function watch($path)
+    {
+        $fullPath = $this->resolvePath($path);
+
+        if (!$fullPath || !File::isFile($fullPath)) {
+            abort(404);
+        }
+
+        $ext = strtolower(pathinfo($fullPath, PATHINFO_EXTENSION));
+        $filename = basename($fullPath);
 
         if ($ext === 'mp4') {
-            // Check for faststart (simple check, or just assume)
-            // For now, we just play it.
-            return Inertia::render('Videos/WatchMp4', compact('filename'));
+            return Inertia::render('Videos/WatchMp4', [
+                'path' => $path,
+                'filename' => $filename
+            ]);
         } elseif ($ext === 'm2ts') {
-            $this->ensureHls($filename);
-            return Inertia::render('Videos/WatchHls', compact('filename'));
+            $hash = md5($path); // Use path hash for cache directory
+            $this->ensureHls($fullPath, $hash);
+            
+            return Inertia::render('Videos/WatchHls', [
+                'hash' => $hash, 
+                'filename' => $filename, 
+                'path' => $path
+            ]);
         }
 
         abort(404);
     }
 
-    public function stream($filename)
+    public function stream($path)
     {
-        $path = $this->videoPath . '/' . $filename;
-        if (!File::exists($path)) {
+        $fullPath = $this->resolvePath($path);
+
+        if (!$fullPath || !File::isFile($fullPath)) {
             abort(404);
         }
-
-        $stream = new VideoStream($path);
+        
+        $stream = new VideoStream($fullPath);
         $stream->start();
     }
 
-    private function ensureHls($filename)
+    private function ensureHls($inputPath, $hash)
     {
-        $nameWithoutExt = pathinfo($filename, PATHINFO_FILENAME);
-        $outputDir = $this->hlsCachePath . '/' . $nameWithoutExt;
+        $outputDir = $this->hlsCachePath . '/' . $hash;
         $playlist = $outputDir . '/index.m3u8';
 
         if (!File::exists($outputDir)) {
@@ -80,32 +158,16 @@ class VideoController extends Controller
 
         if (!File::exists($playlist)) {
             // Start conversion in background
-            // Using nohup to let it run in background
-            $input = $this->videoPath . '/' . $filename;
-
-            // Basic HLS conversion
-            // -c:v libx264 -c:a aac: transcode to standard HLS compatible formats
-            // -f hls: format
-            // -hls_time 10: segment duration
-            // -hls_list_size 0: keep all segments in playlist
-
-            $cmd = "nohup ffmpeg -i " . escapeshellarg($input) . " -c:v libx264 -c:a aac -f hls -hls_time 10 -hls_list_size 0 " . escapeshellarg($playlist) . " > /dev/null 2>&1 &";
-
+            $cmd = "nohup ffmpeg -i " . escapeshellarg($inputPath) . " -c:v libx264 -c:a aac -f hls -hls_time 10 -hls_list_size 0 " . escapeshellarg($playlist) . " > /dev/null 2>&1 &";
             Process::run($cmd);
         }
     }
 
-    public function serveHls($filename, $file)
+    public function serveHls($hash, $file)
     {
-        // $filename is the original m2ts filename (folder name in hls cache)
-        // $file is index.m3u8 or segment.ts
-
-        $nameWithoutExt = pathinfo($filename, PATHINFO_FILENAME);
-        $path = $this->hlsCachePath . '/' . $nameWithoutExt . '/' . $file;
+        $path = $this->hlsCachePath . '/' . $hash . '/' . $file;
 
         if (!File::exists($path)) {
-            // It might be converting. Return 404 or hold?
-            // HLS player retries.
             abort(404);
         }
 

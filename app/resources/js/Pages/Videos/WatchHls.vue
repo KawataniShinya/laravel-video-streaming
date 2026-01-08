@@ -1,7 +1,7 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link } from '@inertiajs/vue3';
-import { onMounted, onBeforeUnmount, ref } from 'vue';
+import { onMounted, onBeforeUnmount, ref, computed } from 'vue';
 import Hls from 'hls.js';
 
 const props = defineProps({
@@ -9,13 +9,30 @@ const props = defineProps({
         type: String,
         required: true,
     },
+    path: {
+        type: String,
+        required: true,
+    },
+    hash: {
+        type: String,
+        required: true,
+    }
 });
 
 const video = ref(null);
 let hls = null;
 
+const backLink = computed(() => {
+    if (!props.path) return route('videos.index');
+    const parts = props.path.split('/');
+    parts.pop(); // Remove filename
+    const dir = parts.join('/');
+    return dir ? route('videos.index', { path: dir }) : route('videos.index');
+});
+
 onMounted(() => {
-    const videoSrc = route('videos.hls', { filename: props.filename, file: 'index.m3u8' });
+    // route('videos.hls', { hash: ..., file: ... })
+    const videoSrc = route('videos.hls', { hash: props.hash, file: 'index.m3u8' });
 
     if (Hls.isSupported()) {
         hls = new Hls();
@@ -73,7 +90,7 @@ onBeforeUnmount(() => {
                 <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
                     <div class="p-6 text-gray-900">
                         <div class="mb-4">
-                            <Link :href="route('videos.index')" class="text-blue-600 hover:text-blue-800">&larr; Back to Library</Link>
+                            <Link :href="backLink" class="text-blue-600 hover:text-blue-800">&larr; Back to Folder</Link>
                         </div>
                         <p class="text-sm text-gray-500 mb-2">Transcoding and streaming via HLS...</p>
                         
