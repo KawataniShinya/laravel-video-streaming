@@ -11,7 +11,8 @@ services:
       PHP_IDE_CONFIG: serverName=server-xdebug
     volumes:
       - ./app:/var/www/app
-      - ./videos:/videos
+      - ./videos:/videos # videosディレクトリ配下に直接動画ファイルを配置する場合
+#      - ~/Movies:/videos # Moviesディレクトリ配下に配置されている動画ファイルを参照する場合
     networks:
       sample-network:
 
