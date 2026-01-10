@@ -158,7 +158,7 @@ class VideoController extends Controller
 
         if (!File::exists($playlist)) {
             // Start conversion in background
-            $cmd = "nohup ffmpeg -i " . escapeshellarg($inputPath) . " -c:v libx264 -c:a aac -f hls -hls_time 10 -hls_list_size 0 " . escapeshellarg($playlist) . " > /dev/null 2>&1 &";
+            $cmd = "nohup ffmpeg -i " . escapeshellarg($inputPath) . " -map 0:v -map 0:a -c:v libx264 -c:a aac -f hls -hls_time 10 -hls_list_size 0 " . escapeshellarg($playlist) . " > /dev/null 2>&1 &";
             Process::run($cmd);
         }
     }
