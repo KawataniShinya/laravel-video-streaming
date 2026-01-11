@@ -21,16 +21,22 @@ class GoogleLoginController extends Controller
             $socialiteUser = Socialite::driver('google')->user();
             $email = $socialiteUser->email;
 
-            $user = User::firstOrCreate(['email' => $email], [
-                'name' => $socialiteUser->name,
-            ]);
+            $user = User::where('email', $email)->first();
+
+            if (!$user) {
+                return redirect()->route('login')->withErrors([
+                    'email' => 'This Google account is not registered.',
+                ]);
+            }
 
             Auth::login($user);
 
             return redirect()->intended('dashboard');
         } catch (Exception $e) {
             Log::error($e);
-            throw $e;
+            return redirect()->route('login')->withErrors([
+                'email' => 'Google authentication failed.',
+            ]);
         }
     }
 }
