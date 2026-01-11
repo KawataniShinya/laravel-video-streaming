@@ -66,7 +66,7 @@ class AdminUserController extends Controller
 
         $password = $request->filled('password')
             ? Hash::make($request->password)
-            : Hash::make(\Illuminate\Support\Str::random(32));
+            : null;
 
         $user = User::create([
             'name' => $request->name,
