@@ -6,6 +6,8 @@ use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use App\Http\Controllers\VideoController;
 
+use App\Http\Controllers\AdminUserController;
+
 Route::get('/', function () {
     return auth()->check()
         ? redirect()->route('dashboard')
@@ -13,7 +15,7 @@ Route::get('/', function () {
 });
 
 Route::get('/dashboard', function () {
-    return Inertia::render('Dashboard');
+    return Inertia::render('Dashboard', []);
 })->middleware(['auth', 'verified'])->name('dashboard');
 
 Route::middleware('auth')->group(function () {
@@ -25,6 +27,14 @@ Route::middleware('auth')->group(function () {
     Route::get('/watch/{path}', [VideoController::class, 'watch'])->where('path', '.*')->name('videos.watch');
     Route::get('/stream/{path}', [VideoController::class, 'stream'])->where('path', '.*')->name('videos.stream');
     Route::get('/hls/{hash}/{file}', [VideoController::class, 'serveHls'])->name('videos.hls');
+
+    // Admin User Management
+    Route::get('/admin/users', [AdminUserController::class, 'index'])->name('admin.users.index');
+    Route::get('/admin/users/create', [AdminUserController::class, 'create'])->name('admin.users.create');
+    Route::post('/admin/users', [AdminUserController::class, 'store'])->name('admin.users.store');
+    Route::get('/admin/users/{user}/edit', [AdminUserController::class, 'edit'])->name('admin.users.edit');
+    Route::put('/admin/users/{user}', [AdminUserController::class, 'update'])->name('admin.users.update');
+    Route::delete('/admin/users/{user}', [AdminUserController::class, 'destroy'])->name('admin.users.destroy');
 });
 
 require __DIR__.'/auth.php';
