@@ -76,7 +76,7 @@ class VideoController extends Controller
         $files = File::files($fullPath);
         foreach ($files as $file) {
             $ext = strtolower($file->getExtension());
-            if (in_array($ext, ['mp4', 'm2ts', 'avi', 'flv'])) {
+            if (in_array($ext, ['mp4', 'm2ts', 'avi', 'flv', 'vob'])) {
                 $items[] = [
                     'type' => 'file',
                     'name' => $file->getFilename(),
@@ -121,7 +121,7 @@ class VideoController extends Controller
                 'path' => $path,
                 'filename' => $filename
             ]);
-        } elseif (in_array($ext, ['m2ts', 'avi', 'flv'])) {
+        } elseif (in_array($ext, ['m2ts', 'avi', 'flv', 'vob'])) {
             $hash = md5($path); // Use path hash for cache directory
             $this->ensureHls($fullPath, $hash);
             
@@ -157,8 +157,32 @@ class VideoController extends Controller
         }
 
         if (!File::exists($playlist)) {
+            $ext = strtolower(pathinfo($inputPath, PATHINFO_EXTENSION));
+            $inputArg = escapeshellarg($inputPath);
+
+            if ($ext === 'vob') {
+                $directory = dirname($inputPath);
+                $files = File::files($directory);
+                $vobFiles = [];
+                foreach ($files as $file) {
+                    $fileName = $file->getFilename();
+                    $fileExt = strtolower($file->getExtension());
+                    
+                    // Exclude VIDEO_TS.VOB and menu VOBs (ending in 0.VOB)
+                    if ($fileExt === 'vob' && 
+                        strtoupper($fileName) !== 'VIDEO_TS.VOB' && 
+                        !str_ends_with(strtoupper($fileName), '0.VOB')) {
+                        
+                        $vobFiles[] = $file->getRealPath();
+                    }
+                }
+                sort($vobFiles);
+                $concatString = 'concat:' . implode('|', $vobFiles);
+                $inputArg = escapeshellarg($concatString);
+            }
+
             // Start conversion in background
-            $cmd = "nohup ffmpeg -i " . escapeshellarg($inputPath) . " -map 0:v -map 0:a -c:v libx264 -c:a aac -f hls -hls_time 10 -hls_list_size 0 " . escapeshellarg($playlist) . " > /dev/null 2>&1 &";
+            $cmd = "nohup ffmpeg -i " . $inputArg . " -map 0:v -map 0:a -c:v libx264 -c:a aac -f hls -hls_time 10 -hls_list_size 0 " . escapeshellarg($playlist) . " > /dev/null 2>&1 &";
             Process::run($cmd);
         }
     }
