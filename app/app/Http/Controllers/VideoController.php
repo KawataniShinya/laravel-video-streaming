@@ -76,7 +76,7 @@ class VideoController extends Controller
         $files = File::files($fullPath);
         foreach ($files as $file) {
             $ext = strtolower($file->getExtension());
-            if (in_array($ext, ['mp4', 'm2ts'])) {
+            if (in_array($ext, ['mp4', 'm2ts', 'avi', 'flv'])) {
                 $items[] = [
                     'type' => 'file',
                     'name' => $file->getFilename(),
@@ -121,7 +121,7 @@ class VideoController extends Controller
                 'path' => $path,
                 'filename' => $filename
             ]);
-        } elseif ($ext === 'm2ts') {
+        } elseif (in_array($ext, ['m2ts', 'avi', 'flv'])) {
             $hash = md5($path); // Use path hash for cache directory
             $this->ensureHls($fullPath, $hash);
             
