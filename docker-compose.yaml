@@ -79,6 +79,7 @@ services:
     container_name: nginx-proxy
     environment:
       VIRTUAL_TIMEOUT: 1800 # タイムアウト30分
+      DEFAULT_HOST: localhost.app.sample.jp
     ports:
       - '80:80'
     volumes:
