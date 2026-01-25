@@ -16,11 +16,16 @@ const props = defineProps({
     hash: {
         type: String,
         required: true,
+    },
+    lastPosition: {
+        type: Number,
+        default: 0,
     }
 });
 
 const video = ref(null);
 let hls = null;
+let updateInterval = null;
 
 const backLink = computed(() => {
     if (!props.path) return route('videos.index');
@@ -30,16 +35,27 @@ const backLink = computed(() => {
     return dir ? route('videos.index', { path: dir }) : route('videos.index');
 });
 
+const saveProgress = (time) => {
+    axios.post(route('videos.progress'), {
+        path: props.path,
+        time: Math.floor(time)
+    });
+};
+
 onMounted(() => {
     // route('videos.hls', { hash: ..., file: ... })
     const videoSrc = route('videos.hls', { hash: props.hash, file: 'index.m3u8' });
+    const v = video.value;
 
     if (Hls.isSupported()) {
         hls = new Hls();
         hls.loadSource(videoSrc);
-        hls.attachMedia(video.value);
+        hls.attachMedia(v);
         hls.on(Hls.Events.MANIFEST_PARSED, function() {
-            video.value.play();
+            if (props.lastPosition > 0) {
+                v.currentTime = props.lastPosition;
+            }
+            v.play();
         });
         
         hls.on(Hls.Events.ERROR, function (event, data) {
@@ -60,17 +76,36 @@ onMounted(() => {
             }
         });
     }
-    else if (video.value.canPlayType('application/vnd.apple.mpegurl')) {
-        video.value.src = videoSrc;
-        video.value.addEventListener('loadedmetadata', function() {
-            video.value.play();
+    else if (v.canPlayType('application/vnd.apple.mpegurl')) {
+        v.src = videoSrc;
+        v.addEventListener('loadedmetadata', function() {
+            if (props.lastPosition > 0) {
+                v.currentTime = props.lastPosition;
+            }
+            v.play();
         });
+    }
+
+    // Save every 10 seconds
+    updateInterval = setInterval(() => {
+        if (v && !v.paused) {
+            saveProgress(v.currentTime);
+        }
+    }, 10000);
+
+    if (v) {
+        v.addEventListener('pause', () => saveProgress(v.currentTime));
     }
 });
 
 onBeforeUnmount(() => {
     if (hls) {
         hls.destroy();
+    }
+    if (updateInterval) clearInterval(updateInterval);
+    const v = video.value;
+    if (v) {
+        saveProgress(v.currentTime);
     }
 });
 </script>
