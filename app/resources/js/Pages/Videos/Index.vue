@@ -33,6 +33,13 @@ const deleteCache = (path) => {
     }
 };
 
+const toggleWatched = (path) => {
+    form.path = path;
+    form.post(route('videos.watched.toggle'), {
+        preserveScroll: true,
+    });
+};
+
 const getParentPath = (path) => {
     if (!path) return null;
     const parts = path.split('/');
@@ -108,20 +115,34 @@ const getParentPath = (path) => {
                                                 <span class="bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity ml-2">Watch</span>
                                             </Link>
                                             
-                                            <div v-if="item.is_cached" class="mr-4">
+                                            <div class="flex items-center mr-4">
+                                                <div v-if="item.is_cached" class="mr-2">
+                                                    <button 
+                                                        v-if="userRole === 'admin'" 
+                                                        @click="deleteCache(item.path)"
+                                                        class="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded text-xs"
+                                                    >
+                                                        Delete Cache
+                                                    </button>
+                                                    <span 
+                                                        v-else 
+                                                        class="bg-green-100 text-green-800 text-xs font-semibold px-2.5 py-0.5 rounded"
+                                                    >
+                                                        Cached
+                                                    </span>
+                                                </div>
+
                                                 <button 
-                                                    v-if="userRole === 'admin'" 
-                                                    @click="deleteCache(item.path)"
-                                                    class="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded text-xs"
+                                                    @click="toggleWatched(item.path)"
+                                                    :class="[
+                                                        'font-bold py-1 px-2 rounded text-xs transition-colors duration-200',
+                                                        item.is_watched 
+                                                            ? 'bg-blue-500 hover:bg-blue-700 text-white' 
+                                                            : 'bg-gray-200 hover:bg-gray-300 text-gray-600'
+                                                    ]"
                                                 >
-                                                    Delete Cache
+                                                    {{ item.is_watched ? 'Watched' : 'Mark Watched' }}
                                                 </button>
-                                                <span 
-                                                    v-else 
-                                                    class="bg-green-100 text-green-800 text-xs font-semibold px-2.5 py-0.5 rounded"
-                                                >
-                                                    Cached
-                                                </span>
                                             </div>
                                         </div>
                                     </template>
