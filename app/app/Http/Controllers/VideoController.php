@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Services\VideoStream;
+use App\Enums\Role;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Process;
 use Inertia\Inertia;
@@ -77,11 +79,20 @@ class VideoController extends Controller
         foreach ($files as $file) {
             $ext = strtolower($file->getExtension());
             if (in_array($ext, ['mp4', 'm2ts', 'avi', 'flv', 'vob'])) {
+                $isCached = false;
+                if (in_array($ext, ['m2ts', 'avi', 'flv', 'vob'])) {
+                    $relativePath = ($path ? $path . '/' : '') . $file->getFilename();
+                    $hash = md5($relativePath);
+                    $playlist = $this->hlsCachePath . '/' . $hash . '/index.m3u8';
+                    $isCached = File::exists($playlist);
+                }
+
                 $items[] = [
                     'type' => 'file',
                     'name' => $file->getFilename(),
                     'path' => ($path ? $path . '/' : '') . $file->getFilename(),
-                    'ext'  => $ext
+                    'ext'  => $ext,
+                    'is_cached' => $isCached,
                 ];
             }
         }
@@ -196,5 +207,26 @@ class VideoController extends Controller
         }
 
         return response()->file($path);
+    }
+
+    public function deleteCache(Request $request)
+    {
+        if (Auth::user()->role !== Role::Admin->value) {
+            abort(403, 'Unauthorized action.');
+        }
+
+        $path = $request->input('path');
+        if (!$path) {
+            return redirect()->back();
+        }
+
+        $hash = md5($path);
+        $cacheDir = $this->hlsCachePath . '/' . $hash;
+
+        if (File::exists($cacheDir)) {
+            File::deleteDirectory($cacheDir);
+        }
+
+        return redirect()->back();
     }
 }

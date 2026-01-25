@@ -1,6 +1,6 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
 
 const props = defineProps({
     items: {
@@ -16,6 +16,22 @@ const props = defineProps({
         default: () => [],
     }
 });
+
+const page = usePage();
+const userRole = page.props.auth.user.role;
+
+const form = useForm({
+    path: null,
+});
+
+const deleteCache = (path) => {
+    if (confirm('Are you sure you want to delete the cache for this video?')) {
+        form.path = path;
+        form.post(route('videos.cache.delete'), {
+            preserveScroll: true,
+        });
+    }
+};
 
 const getParentPath = (path) => {
     if (!path) return null;
@@ -83,13 +99,31 @@ const getParentPath = (path) => {
                                         </Link>
                                     </template>
                                     <template v-else>
-                                        <Link :href="route('videos.watch', { path: item.path })" class="block px-6 py-4 flex items-center justify-between group">
-                                            <div class="flex items-center">
-                                                <svg class="w-6 h-6 text-blue-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                                                <span class="text-gray-900">{{ item.name }}</span>
+                                        <div class="flex items-center justify-between w-full">
+                                            <Link :href="route('videos.watch', { path: item.path })" class="flex items-center group flex-grow px-6 py-4">
+                                                <div class="flex items-center">
+                                                    <svg class="w-6 h-6 text-blue-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                                    <span class="text-gray-900">{{ item.name }}</span>
+                                                </div>
+                                                <span class="bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity ml-2">Watch</span>
+                                            </Link>
+                                            
+                                            <div v-if="item.is_cached" class="mr-4">
+                                                <button 
+                                                    v-if="userRole === 'admin'" 
+                                                    @click="deleteCache(item.path)"
+                                                    class="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded text-xs"
+                                                >
+                                                    Delete Cache
+                                                </button>
+                                                <span 
+                                                    v-else 
+                                                    class="bg-green-100 text-green-800 text-xs font-semibold px-2.5 py-0.5 rounded"
+                                                >
+                                                    Cached
+                                                </span>
                                             </div>
-                                            <span class="bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity">Watch</span>
-                                        </Link>
+                                        </div>
                                     </template>
                                 </li>
                             </ul>

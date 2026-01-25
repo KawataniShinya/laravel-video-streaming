@@ -27,6 +27,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/watch/{path}', [VideoController::class, 'watch'])->where('path', '.*')->name('videos.watch');
     Route::get('/stream/{path}', [VideoController::class, 'stream'])->where('path', '.*')->name('videos.stream');
     Route::get('/hls/{hash}/{file}', [VideoController::class, 'serveHls'])->name('videos.hls');
+    Route::post('/videos/cache/delete', [VideoController::class, 'deleteCache'])->name('videos.cache.delete');
 
     // Admin User Management
     Route::get('/admin/users', [AdminUserController::class, 'index'])->name('admin.users.index');
