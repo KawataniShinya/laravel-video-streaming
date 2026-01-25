@@ -29,6 +29,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/hls/{hash}/{file}', [VideoController::class, 'serveHls'])->name('videos.hls');
     Route::post('/videos/cache/delete', [VideoController::class, 'deleteCache'])->name('videos.cache.delete');
     Route::post('/videos/watched/toggle', [VideoController::class, 'toggleWatchStatus'])->name('videos.watched.toggle');
+    Route::post('/videos/progress', [VideoController::class, 'updateProgress'])->name('videos.progress');
 
     // Admin User Management
     Route::get('/admin/users', [AdminUserController::class, 'index'])->name('admin.users.index');

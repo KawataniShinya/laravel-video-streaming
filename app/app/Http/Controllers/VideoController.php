@@ -132,8 +132,8 @@ class VideoController extends Controller
             abort(404);
         }
 
-        // Mark as watched
-        VideoView::firstOrCreate([
+        // Mark as watched and get last position
+        $view = VideoView::firstOrCreate([
             'user_id' => Auth::id(),
             'video_path' => $path,
         ]);
@@ -141,20 +141,20 @@ class VideoController extends Controller
         $ext = strtolower(pathinfo($fullPath, PATHINFO_EXTENSION));
         $filename = basename($fullPath);
 
+        $props = [
+            'filename' => $filename,
+            'path' => $path,
+            'lastPosition' => $view->last_position ?? 0,
+        ];
+
         if ($ext === 'mp4') {
-            return Inertia::render('Videos/WatchMp4', [
-                'path' => $path,
-                'filename' => $filename
-            ]);
+            return Inertia::render('Videos/WatchMp4', $props);
         } elseif (in_array($ext, ['m2ts', 'avi', 'flv', 'vob'])) {
             $hash = md5($path); // Use path hash for cache directory
             $this->ensureHls($fullPath, $hash);
-            
-            return Inertia::render('Videos/WatchHls', [
-                'hash' => $hash, 
-                'filename' => $filename, 
-                'path' => $path
-            ]);
+
+            $props['hash'] = $hash;
+            return Inertia::render('Videos/WatchHls', $props);
         }
 
         abort(404);
@@ -167,9 +167,28 @@ class VideoController extends Controller
         if (!$fullPath || !File::isFile($fullPath)) {
             abort(404);
         }
-        
+
         $stream = new VideoStream($fullPath);
         $stream->start();
+    }
+
+    // ... (ensureHls, serveHls, deleteCache, toggleWatchStatus)
+
+    public function updateProgress(Request $request)
+    {
+        $path = $request->input('path');
+        $time = $request->input('time');
+
+        if (!$path || !is_numeric($time)) {
+            return response()->json(['status' => 'error'], 400);
+        }
+
+        VideoView::updateOrCreate(
+            ['user_id' => Auth::id(), 'video_path' => $path],
+            ['last_position' => (int) $time]
+        );
+
+        return response()->json(['status' => 'success']);
     }
 
     private function ensureHls($inputPath, $hash)
@@ -192,12 +211,12 @@ class VideoController extends Controller
                 foreach ($files as $file) {
                     $fileName = $file->getFilename();
                     $fileExt = strtolower($file->getExtension());
-                    
+
                     // Exclude VIDEO_TS.VOB and menu VOBs (ending in 0.VOB)
-                    if ($fileExt === 'vob' && 
-                        strtoupper($fileName) !== 'VIDEO_TS.VOB' && 
+                    if ($fileExt === 'vob' &&
+                        strtoupper($fileName) !== 'VIDEO_TS.VOB' &&
                         !str_ends_with(strtoupper($fileName), '0.VOB')) {
-                        
+
                         $vobFiles[] = $file->getRealPath();
                     }
                 }

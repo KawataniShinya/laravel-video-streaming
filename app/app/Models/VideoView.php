@@ -9,5 +9,5 @@ class VideoView extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['user_id', 'video_path'];
+    protected $fillable = ['user_id', 'video_path', 'last_position'];
 }
