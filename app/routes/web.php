@@ -8,6 +8,7 @@ use App\Http\Controllers\VideoController;
 
 use App\Http\Controllers\AdminUserController;
 use App\Http\Controllers\FavoriteController;
+use App\Http\Controllers\HlsCacheController;
 
 Route::get('/', function () {
     return auth()->check()
@@ -43,6 +44,11 @@ Route::middleware('auth')->group(function () {
     Route::get('/admin/users/{user}/edit', [AdminUserController::class, 'edit'])->name('admin.users.edit');
     Route::put('/admin/users/{user}', [AdminUserController::class, 'update'])->name('admin.users.update');
     Route::delete('/admin/users/{user}', [AdminUserController::class, 'destroy'])->name('admin.users.destroy');
+
+    // HLS Cache Management
+    Route::get('/admin/hls-cache', [HlsCacheController::class, 'index'])->name('admin.hls.index');
+    Route::delete('/admin/hls-cache/all', [HlsCacheController::class, 'destroyAll'])->name('admin.hls.destroy_all');
+    Route::delete('/admin/hls-cache/{hash}', [HlsCacheController::class, 'destroy'])->name('admin.hls.destroy');
 });
 
 require __DIR__.'/auth.php';
