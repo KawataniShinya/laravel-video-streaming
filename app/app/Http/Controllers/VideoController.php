@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Services\VideoStream;
 use App\Enums\Role;
 use App\Models\VideoView;
+use App\Models\Favorite;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\File;
@@ -64,22 +65,28 @@ class VideoController extends Controller
             abort(404);
         }
 
-        $items = [];
-        // Scan directories
-        $directories = File::directories($fullPath);
-        foreach ($directories as $dir) {
-            $items[] = [
-                'type' => 'folder',
-                'name' => basename($dir),
-                'path' => ($path ? $path . '/' : '') . basename($dir),
-            ];
-        }
-
-        // Get watched videos for the current user
+        // Get watched videos and favorites for the current user
         $watchedVideos = VideoView::where('user_id', Auth::id())
             ->pluck('video_path')
             ->flip()
             ->toArray();
+            
+        $favorites = Favorite::where('user_id', Auth::id())
+            ->pluck('path')
+            ->flip()
+            ->toArray();
+
+        // Scan directories
+        $directories = File::directories($fullPath);
+        foreach ($directories as $dir) {
+            $relativePath = ($path ? $path . '/' : '') . basename($dir);
+            $items[] = [
+                'type' => 'folder',
+                'name' => basename($dir),
+                'path' => $relativePath,
+                'is_favorited' => isset($favorites[$relativePath]),
+            ];
+        }
 
         // Scan files
         $files = File::files($fullPath);
@@ -101,6 +108,7 @@ class VideoController extends Controller
                     'ext'  => $ext,
                     'is_cached' => $isCached,
                     'is_watched' => isset($watchedVideos[$relativePath]),
+                    'is_favorited' => isset($favorites[$relativePath]),
                 ];
             }
         }
@@ -145,6 +153,7 @@ class VideoController extends Controller
             'filename' => $filename,
             'path' => $path,
             'lastPosition' => $view->last_position ?? 0,
+            'isFavorited' => Favorite::where('user_id', Auth::id())->where('path', $path)->exists(),
         ];
 
         if ($ext === 'mp4') {
