@@ -1,5 +1,6 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import FavoriteToggle from '@/Components/FavoriteToggle.vue';
 import { Head, Link } from '@inertiajs/vue3';
 import { onMounted, onBeforeUnmount, ref, computed } from 'vue';
 import Hls from 'hls.js';
@@ -20,6 +21,10 @@ const props = defineProps({
     lastPosition: {
         type: Number,
         default: 0,
+    },
+    isFavorited: {
+        type: Boolean,
+        default: false,
     }
 });
 
@@ -115,9 +120,12 @@ onBeforeUnmount(() => {
 
     <AuthenticatedLayout>
         <template #header>
-            <h2 class="text-xl font-semibold leading-tight text-gray-800">
-                Watching {{ filename }}
-            </h2>
+            <div class="flex justify-between items-center">
+                <h2 class="text-xl font-semibold leading-tight text-gray-800">
+                    Watching {{ filename }}
+                </h2>
+                <FavoriteToggle :path="path" type="file" :is-favorited="isFavorited" />
+            </div>
         </template>
 
         <div class="py-12">

@@ -7,6 +7,7 @@ use Inertia\Inertia;
 use App\Http\Controllers\VideoController;
 
 use App\Http\Controllers\AdminUserController;
+use App\Http\Controllers\FavoriteController;
 
 Route::get('/', function () {
     return auth()->check()
@@ -30,6 +31,10 @@ Route::middleware('auth')->group(function () {
     Route::post('/videos/cache/delete', [VideoController::class, 'deleteCache'])->name('videos.cache.delete');
     Route::post('/videos/watched/toggle', [VideoController::class, 'toggleWatchStatus'])->name('videos.watched.toggle');
     Route::post('/videos/progress', [VideoController::class, 'updateProgress'])->name('videos.progress');
+
+    // Favorites
+    Route::get('/favorites', [FavoriteController::class, 'index'])->name('favorites.index');
+    Route::post('/favorites/toggle', [FavoriteController::class, 'toggle'])->name('favorites.toggle');
 
     // Admin User Management
     Route::get('/admin/users', [AdminUserController::class, 'index'])->name('admin.users.index');
