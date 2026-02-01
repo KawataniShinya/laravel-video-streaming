@@ -99,7 +99,7 @@ const getParentPath = (path) => {
                                 <li v-for="item in items" :key="item.path" class="hover:bg-gray-50 transition duration-150 ease-in-out">
                                     <template v-if="item.type === 'folder'">
                                         <div class="flex items-center justify-between w-full">
-                                            <Link :href="route('videos.index', { path: item.path })" class="flex items-center flex-grow px-6 py-4">
+                                            <Link :href="route('videos.index', { path: item.path.replace(/#/g, '%23') })" class="flex items-center flex-grow px-6 py-4">
                                                 <div class="flex items-center">
                                                     <svg class="w-6 h-6 text-yellow-500 mr-3 fill-current" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"></path></svg>
                                                     <span class="text-gray-900 font-medium">{{ item.name }}</span>
@@ -113,7 +113,7 @@ const getParentPath = (path) => {
                                     </template>
                                     <template v-else>
                                         <div class="flex items-center justify-between w-full">
-                                            <Link :href="route('videos.watch', { path: item.path })" class="flex items-center group flex-grow px-6 py-4">
+                                            <Link :href="route('videos.watch', { path: item.path.replace(/#/g, '%23') })" class="flex items-center group flex-grow px-6 py-4">
                                                 <div class="flex items-center">
                                                     <svg class="w-6 h-6 text-blue-500 mr-3 fill-current" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                                                     <span class="text-gray-900">{{ item.name }}</span>

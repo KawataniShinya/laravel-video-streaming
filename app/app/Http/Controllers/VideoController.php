@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Process;
+use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 
 class VideoController extends Controller
@@ -27,6 +28,12 @@ class VideoController extends Controller
      */
     private function resolvePath($subpath)
     {
+        if ($subpath) {
+            $subpath = rawurldecode($subpath);
+        }
+
+        Log::info('Resolving path: ' . $subpath);
+
         // Prevent directory traversal
         if (strpos($subpath, '..') !== false) {
             return null;
@@ -39,6 +46,7 @@ class VideoController extends Controller
 
         // Check if file/dir exists
         if (!File::exists($path)) {
+            Log::warning('File does not exist: ' . $path);
             return null;
         }
 
@@ -47,6 +55,7 @@ class VideoController extends Controller
         $realRoot = realpath($this->videoRoot);
 
         if ($realPath === false || strpos($realPath, $realRoot) !== 0) {
+            Log::warning('Path outside root: ' . $realPath);
             return null;
         }
 
@@ -76,6 +85,7 @@ class VideoController extends Controller
             ->flip()
             ->toArray();
 
+        $items = [];
         // Scan directories
         $directories = File::directories($fullPath);
         foreach ($directories as $dir) {
@@ -143,7 +153,7 @@ class VideoController extends Controller
         // Mark as watched and get last position
         $view = VideoView::firstOrCreate([
             'user_id' => Auth::id(),
-            'video_path' => $path,
+            'video_path' => rawurldecode($path),
         ]);
 
         $ext = strtolower(pathinfo($fullPath, PATHINFO_EXTENSION));
@@ -153,13 +163,13 @@ class VideoController extends Controller
             'filename' => $filename,
             'path' => $path,
             'lastPosition' => $view->last_position ?? 0,
-            'isFavorited' => Favorite::where('user_id', Auth::id())->where('path', $path)->exists(),
+            'isFavorited' => Favorite::where('user_id', Auth::id())->where('path', rawurldecode($path))->exists(),
         ];
 
         if ($ext === 'mp4') {
             return Inertia::render('Videos/WatchMp4', $props);
         } elseif (in_array($ext, ['m2ts', 'avi', 'flv', 'vob'])) {
-            $hash = md5($path); // Use path hash for cache directory
+            $hash = md5(rawurldecode($path)); // Use path hash for cache directory
             $this->ensureHls($fullPath, $hash);
 
             $props['hash'] = $hash;
@@ -181,8 +191,6 @@ class VideoController extends Controller
         $stream->start();
     }
 
-    // ... (ensureHls, serveHls, deleteCache, toggleWatchStatus)
-
     public function updateProgress(Request $request)
     {
         $path = $request->input('path');
@@ -193,7 +201,7 @@ class VideoController extends Controller
         }
 
         VideoView::updateOrCreate(
-            ['user_id' => Auth::id(), 'video_path' => $path],
+            ['user_id' => Auth::id(), 'video_path' => rawurldecode($path)],
             ['last_position' => (int) $time]
         );
 
@@ -221,7 +229,6 @@ class VideoController extends Controller
                     $fileName = $file->getFilename();
                     $fileExt = strtolower($file->getExtension());
 
-                    // Exclude VIDEO_TS.VOB and menu VOBs (ending in 0.VOB)
                     if ($fileExt === 'vob' &&
                         strtoupper($fileName) !== 'VIDEO_TS.VOB' &&
                         !str_ends_with(strtoupper($fileName), '0.VOB')) {
@@ -262,7 +269,7 @@ class VideoController extends Controller
             return redirect()->back();
         }
 
-        $hash = md5($path);
+        $hash = md5(rawurldecode($path));
         $cacheDir = $this->hlsCachePath . '/' . $hash;
 
         if (File::exists($cacheDir)) {
@@ -280,14 +287,15 @@ class VideoController extends Controller
         }
 
         $userId = Auth::id();
-        $view = VideoView::where('user_id', $userId)->where('video_path', $path)->first();
+        $decodedPath = rawurldecode($path);
+        $view = VideoView::where('user_id', $userId)->where('video_path', $decodedPath)->first();
 
         if ($view) {
             $view->delete();
         } else {
             VideoView::create([
                 'user_id' => $userId,
-                'video_path' => $path,
+                'video_path' => $decodedPath,
             ]);
         }
 
