@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Favorite;
 use App\Models\VideoView;
+use App\Models\Video as VideoModel;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
@@ -11,41 +12,38 @@ use Illuminate\Support\Facades\File;
 
 class FavoriteController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
     public function index()
     {
-        $favorites = Favorite::where('user_id', Auth::id())->get();
+        $favorites = Favorite::with('video')->where('user_id', Auth::id())->get();
         $items = [];
-
-        // HLS cache path for checking status (optional, but good for consistency)
         $hlsCachePath = storage_path('hls');
 
-        // Prepare watched status map for consistency
-        $watchedVideos = VideoView::where('user_id', Auth::id())
-            ->pluck('video_path')
+        $watchedVideoIds = VideoView::where('user_id', Auth::id())
+            ->pluck('video_id')
             ->flip()
             ->toArray();
 
         foreach ($favorites as $fav) {
-            $ext = pathinfo($fav->path, PATHINFO_EXTENSION);
-            $name = basename($fav->path);
+            $video = $fav->video;
+            if (!$video) continue;
+
+            $ext = pathinfo($video->path, PATHINFO_EXTENSION);
+            $name = basename($video->path);
             
             $isCached = false;
-            if ($fav->type === 'file' && in_array(strtolower($ext), ['m2ts', 'avi', 'flv', 'vob'])) {
-                $hash = md5($fav->path);
-                $playlist = $hlsCachePath . '/' . $hash . '/index.m3u8';
+            if ($video->type === 'file' && in_array(strtolower($ext), ['m2ts', 'avi', 'flv', 'vob'])) {
+                $playlist = $hlsCachePath . '/' . $video->hash . '/index.m3u8';
                 $isCached = File::exists($playlist);
             }
 
             $items[] = [
-                'type' => $fav->type, // 'file' or 'folder'
+                'id' => $video->id,
+                'type' => $video->type,
                 'name' => $name,
-                'path' => $fav->path,
+                'path' => $video->path,
                 'ext' => strtolower($ext),
                 'is_cached' => $isCached,
-                'is_watched' => isset($watchedVideos[$fav->path]),
+                'is_watched' => isset($watchedVideoIds[$video->id]),
                 'is_favorited' => true,
             ];
         }
@@ -55,9 +53,6 @@ class FavoriteController extends Controller
         ]);
     }
 
-    /**
-     * Toggle favorite status.
-     */
     public function toggle(Request $request)
     {
         $request->validate([
@@ -65,21 +60,25 @@ class FavoriteController extends Controller
             'type' => 'required|in:file,folder',
         ]);
 
-        $userId = Auth::id();
-        $path = $request->path;
-        $type = $request->type;
+        $path = rawurldecode($request->path);
+        
+        // Ensure video master record exists
+        $video = VideoModel::firstOrCreate(
+            ['path' => $path],
+            ['hash' => md5($path), 'type' => $request->type]
+        );
 
-        $favorite = Favorite::where('user_id', $userId)
-            ->where('path', $path)
+        $favorite = Favorite::where('user_id', Auth::id())
+            ->where('video_id', $video->id)
             ->first();
 
         if ($favorite) {
             $favorite->delete();
         } else {
             Favorite::create([
-                'user_id' => $userId,
-                'path' => $path,
-                'type' => $type,
+                'user_id' => Auth::id(),
+                'video_id' => $video->id,
+                'type' => $request->type,
             ]);
         }
 

@@ -3,8 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\Role;
-use App\Models\VideoView;
-use Illuminate\Http\Request;
+use App\Models\Video as VideoModel;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\File;
 use Inertia\Inertia;
@@ -28,6 +27,7 @@ class HlsCacheController extends Controller
     private function getDirectorySize($path)
     {
         $size = 0;
+        if (!File::exists($path)) return 0;
         foreach (File::allFiles($path) as $file) {
             $size += $file->getSize();
         }
@@ -51,13 +51,8 @@ class HlsCacheController extends Controller
         $caches = [];
         $totalSize = 0;
 
-        // Try to map hashes to filenames using VideoView history
-        // This is a best-effort approach.
-        $knownPaths = VideoView::distinct()->pluck('video_path')->toArray();
-        $hashMap = [];
-        foreach ($knownPaths as $path) {
-            $hashMap[md5($path)] = $path;
-        }
+        // Map hashes using the videos master table
+        $knownVideos = VideoModel::all()->pluck('path', 'hash')->toArray();
 
         if (File::exists($this->hlsCachePath)) {
             $directories = File::directories($this->hlsCachePath);
@@ -68,14 +63,13 @@ class HlsCacheController extends Controller
 
                 $caches[] = [
                     'hash' => $hash,
-                    'path' => $hashMap[$hash] ?? 'Unknown (or deleted from history)',
+                    'path' => $knownVideos[$hash] ?? 'Unknown (Source path not in database)',
                     'size' => $this->formatBytes($size),
                     'size_bytes' => $size,
                 ];
             }
         }
 
-        // Sort by size desc
         usort($caches, function ($a, $b) {
             return $b['size_bytes'] <=> $a['size_bytes'];
         });
@@ -89,26 +83,20 @@ class HlsCacheController extends Controller
     public function destroy($hash)
     {
         $this->authorizeAdmin();
-
         $dir = $this->hlsCachePath . '/' . $hash;
-        if (File::exists($dir)) {
-            File::deleteDirectory($dir);
-        }
-
+        if (File::exists($dir)) File::deleteDirectory($dir);
         return redirect()->back();
     }
 
     public function destroyAll()
     {
         $this->authorizeAdmin();
-
         if (File::exists($this->hlsCachePath)) {
             $directories = File::directories($this->hlsCachePath);
             foreach ($directories as $dir) {
                 File::deleteDirectory($dir);
             }
         }
-
         return redirect()->back();
     }
 }
