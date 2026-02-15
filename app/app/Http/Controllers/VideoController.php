@@ -6,11 +6,11 @@ use App\Services\VideoStream;
 use App\Enums\Role;
 use App\Models\VideoView;
 use App\Models\Favorite;
+use App\Models\Video as VideoModel;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Process;
-use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 
 class VideoController extends Controller
@@ -23,18 +23,20 @@ class VideoController extends Controller
         $this->hlsCachePath = storage_path('hls');
     }
 
-    /**
-     * Resolve the real path and ensure it's within the video root.
-     */
+    private function getOrCreateVideo($path, $type)
+    {
+        return VideoModel::firstOrCreate(
+            ['path' => $path],
+            ['hash' => md5($path), 'type' => $type]
+        );
+    }
+
     private function resolvePath($subpath)
     {
         if ($subpath) {
             $subpath = rawurldecode($subpath);
         }
 
-        Log::info('Resolving path: ' . $subpath);
-
-        // Prevent directory traversal
         if (strpos($subpath, '..') !== false) {
             return null;
         }
@@ -44,18 +46,14 @@ class VideoController extends Controller
             $path .= '/' . $subpath;
         }
 
-        // Check if file/dir exists
         if (!File::exists($path)) {
-            Log::warning('File does not exist: ' . $path);
             return null;
         }
 
-        // Use realpath to strictly verify it is inside videoRoot
         $realPath = realpath($path);
         $realRoot = realpath($this->videoRoot);
 
         if ($realPath === false || strpos($realPath, $realRoot) !== 0) {
-            Log::warning('Path outside root: ' . $realPath);
             return null;
         }
 
@@ -67,34 +65,26 @@ class VideoController extends Controller
         $fullPath = $this->resolvePath($path);
 
         if (!$fullPath || !File::isDirectory($fullPath)) {
-            // If it's a file, redirect to watch
             if ($fullPath && File::isFile($fullPath)) {
                 return redirect()->route('videos.watch', ['path' => $path]);
             }
             abort(404);
         }
 
-        // Get watched videos and favorites for the current user
-        $watchedVideos = VideoView::where('user_id', Auth::id())
-            ->pluck('video_path')
-            ->flip()
-            ->toArray();
-            
-        $favorites = Favorite::where('user_id', Auth::id())
-            ->pluck('path')
-            ->flip()
-            ->toArray();
-
+        // Pre-register or find current items in this directory to get IDs
         $items = [];
+
         // Scan directories
         $directories = File::directories($fullPath);
         foreach ($directories as $dir) {
             $relativePath = ($path ? $path . '/' : '') . basename($dir);
+            $video = $this->getOrCreateVideo($relativePath, 'folder');
+
             $items[] = [
+                'id' => $video->id,
                 'type' => 'folder',
                 'name' => basename($dir),
                 'path' => $relativePath,
-                'is_favorited' => isset($favorites[$relativePath]),
             ];
         }
 
@@ -104,23 +94,44 @@ class VideoController extends Controller
             $ext = strtolower($file->getExtension());
             if (in_array($ext, ['mp4', 'm2ts', 'avi', 'flv', 'vob'])) {
                 $relativePath = ($path ? $path . '/' : '') . $file->getFilename();
+                $video = $this->getOrCreateVideo($relativePath, 'file');
+
                 $isCached = false;
                 if (in_array($ext, ['m2ts', 'avi', 'flv', 'vob'])) {
-                    $hash = md5($relativePath);
-                    $playlist = $this->hlsCachePath . '/' . $hash . '/index.m3u8';
+                    $playlist = $this->hlsCachePath . '/' . $video->hash . '/index.m3u8';
                     $isCached = File::exists($playlist);
                 }
 
                 $items[] = [
+                    'id' => $video->id,
                     'type' => 'file',
                     'name' => $file->getFilename(),
                     'path' => $relativePath,
                     'ext'  => $ext,
                     'is_cached' => $isCached,
-                    'is_watched' => isset($watchedVideos[$relativePath]),
-                    'is_favorited' => isset($favorites[$relativePath]),
                 ];
             }
+        }
+
+        // Get IDs of favorited and watched items for this user
+        $itemIds = collect($items)->pluck('id');
+
+        $watchedVideoIds = VideoView::where('user_id', Auth::id())
+            ->whereIn('video_id', $itemIds)
+            ->pluck('video_id')
+            ->flip()
+            ->toArray();
+
+        $favoriteVideoIds = Favorite::where('user_id', Auth::id())
+            ->whereIn('video_id', $itemIds)
+            ->pluck('video_id')
+            ->flip()
+            ->toArray();
+
+        // Attach statuses
+        foreach ($items as &$item) {
+            $item['is_watched'] = isset($watchedVideoIds[$item['id']]);
+            $item['is_favorited'] = isset($favoriteVideoIds[$item['id']]);
         }
 
         // Breadcrumbs
@@ -150,10 +161,12 @@ class VideoController extends Controller
             abort(404);
         }
 
-        // Mark as watched and get last position
+        $video = $this->getOrCreateVideo(rawurldecode($path), 'file');
+
+        // Mark as watched
         $view = VideoView::firstOrCreate([
             'user_id' => Auth::id(),
-            'video_path' => rawurldecode($path),
+            'video_id' => $video->id,
         ]);
 
         $ext = strtolower(pathinfo($fullPath, PATHINFO_EXTENSION));
@@ -163,16 +176,14 @@ class VideoController extends Controller
             'filename' => $filename,
             'path' => $path,
             'lastPosition' => $view->last_position ?? 0,
-            'isFavorited' => Favorite::where('user_id', Auth::id())->where('path', rawurldecode($path))->exists(),
+            'isFavorited' => Favorite::where('user_id', Auth::id())->where('video_id', $video->id)->exists(),
         ];
 
         if ($ext === 'mp4') {
             return Inertia::render('Videos/WatchMp4', $props);
         } elseif (in_array($ext, ['m2ts', 'avi', 'flv', 'vob'])) {
-            $hash = md5(rawurldecode($path)); // Use path hash for cache directory
-            $this->ensureHls($fullPath, $hash);
-
-            $props['hash'] = $hash;
+            $this->ensureHls($fullPath, $video->hash);
+            $props['hash'] = $video->hash;
             return Inertia::render('Videos/WatchHls', $props);
         }
 
@@ -182,10 +193,7 @@ class VideoController extends Controller
     public function stream($path)
     {
         $fullPath = $this->resolvePath($path);
-
-        if (!$fullPath || !File::isFile($fullPath)) {
-            abort(404);
-        }
+        if (!$fullPath || !File::isFile($fullPath)) abort(404);
 
         $stream = new VideoStream($fullPath);
         $stream->start();
@@ -195,13 +203,13 @@ class VideoController extends Controller
     {
         $path = $request->input('path');
         $time = $request->input('time');
+        if (!$path || !is_numeric($time)) return response()->json(['status' => 'error'], 400);
 
-        if (!$path || !is_numeric($time)) {
-            return response()->json(['status' => 'error'], 400);
-        }
+        $video = VideoModel::where('path', rawurldecode($path))->first();
+        if (!$video) return response()->json(['status' => 'error'], 404);
 
         VideoView::updateOrCreate(
-            ['user_id' => Auth::id(), 'video_path' => rawurldecode($path)],
+            ['user_id' => Auth::id(), 'video_id' => $video->id],
             ['last_position' => (int) $time]
         );
 
@@ -228,20 +236,14 @@ class VideoController extends Controller
                 foreach ($files as $file) {
                     $fileName = $file->getFilename();
                     $fileExt = strtolower($file->getExtension());
-
-                    if ($fileExt === 'vob' &&
-                        strtoupper($fileName) !== 'VIDEO_TS.VOB' &&
-                        !str_ends_with(strtoupper($fileName), '0.VOB')) {
-
+                    if ($fileExt === 'vob' && strtoupper($fileName) !== 'VIDEO_TS.VOB' && !str_ends_with(strtoupper($fileName), '0.VOB')) {
                         $vobFiles[] = $file->getRealPath();
                     }
                 }
                 sort($vobFiles);
-                $concatString = 'concat:' . implode('|', $vobFiles);
-                $inputArg = escapeshellarg($concatString);
+                $inputArg = escapeshellarg('concat:' . implode('|', $vobFiles));
             }
 
-            // Start conversion in background
             $cmd = "nohup ffmpeg -i " . $inputArg . " -map 0:v -map 0:a -c:v libx264 -c:a aac -f hls -hls_time 10 -hls_list_size 0 " . escapeshellarg($playlist) . " > /dev/null 2>&1 &";
             Process::run($cmd);
         }
@@ -250,30 +252,21 @@ class VideoController extends Controller
     public function serveHls($hash, $file)
     {
         $path = $this->hlsCachePath . '/' . $hash . '/' . $file;
-
-        if (!File::exists($path)) {
-            abort(404);
-        }
-
+        if (!File::exists($path)) abort(404);
         return response()->file($path);
     }
 
     public function deleteCache(Request $request)
     {
-        if (Auth::user()->role !== Role::Admin->value) {
-            abort(403, 'Unauthorized action.');
-        }
+        if (Auth::user()->role !== Role::Admin->value) abort(403);
 
         $path = $request->input('path');
-        if (!$path) {
-            return redirect()->back();
-        }
+        if (!$path) return redirect()->back();
 
-        $hash = md5(rawurldecode($path));
-        $cacheDir = $this->hlsCachePath . '/' . $hash;
-
-        if (File::exists($cacheDir)) {
-            File::deleteDirectory($cacheDir);
+        $video = VideoModel::where('path', rawurldecode($path))->first();
+        if ($video) {
+            $cacheDir = $this->hlsCachePath . '/' . $video->hash;
+            if (File::exists($cacheDir)) File::deleteDirectory($cacheDir);
         }
 
         return redirect()->back();
@@ -282,21 +275,15 @@ class VideoController extends Controller
     public function toggleWatchStatus(Request $request)
     {
         $path = $request->input('path');
-        if (!$path) {
-            return redirect()->back();
-        }
+        if (!$path) return redirect()->back();
 
-        $userId = Auth::id();
-        $decodedPath = rawurldecode($path);
-        $view = VideoView::where('user_id', $userId)->where('video_path', $decodedPath)->first();
+        $video = $this->getOrCreateVideo(rawurldecode($path), 'file');
+        $view = VideoView::where('user_id', Auth::id())->where('video_id', $video->id)->first();
 
         if ($view) {
             $view->delete();
         } else {
-            VideoView::create([
-                'user_id' => $userId,
-                'video_path' => $decodedPath,
-            ]);
+            VideoView::create(['user_id' => Auth::id(), 'video_id' => $video->id]);
         }
 
         return redirect()->back();
