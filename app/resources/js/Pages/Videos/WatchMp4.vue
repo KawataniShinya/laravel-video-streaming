@@ -35,6 +35,8 @@ const backLink = computed(() => {
 });
 
 const saveProgress = (time) => {
+    if (!time || time <= 0) return;
+
     axios.post(route('videos.progress'), {
         path: props.path,
         time: Math.floor(time)

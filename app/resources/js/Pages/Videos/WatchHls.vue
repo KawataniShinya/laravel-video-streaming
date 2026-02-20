@@ -41,6 +41,10 @@ const backLink = computed(() => {
 });
 
 const saveProgress = (time) => {
+    // Avoid saving if time is 0 or invalid to prevent accidental resets
+    // during component unmount or HLS initialization.
+    if (!time || time <= 0) return;
+
     axios.post(route('videos.progress'), {
         path: props.path,
         time: Math.floor(time)
@@ -104,13 +108,13 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
-    if (hls) {
-        hls.destroy();
-    }
     if (updateInterval) clearInterval(updateInterval);
     const v = video.value;
-    if (v) {
+    if (v && v.currentTime > 0) {
         saveProgress(v.currentTime);
+    }
+    if (hls) {
+        hls.destroy();
     }
 });
 </script>
