@@ -28,7 +28,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/videos/{path?}', [VideoController::class, 'index'])->where('path', '.*')->name('videos.index');
     Route::get('/watch/{path}', [VideoController::class, 'watch'])->where('path', '.*')->name('videos.watch');
     Route::get('/stream/{path}', [VideoController::class, 'stream'])->where('path', '.*')->name('videos.stream');
-    Route::get('/hls/{hash}/{file}', [VideoController::class, 'serveHls'])->name('videos.hls');
+    Route::get('/hls/{hash}/{file}', [VideoController::class, 'serveHls'])->where('file', '.*')->name('videos.hls');
     Route::post('/videos/cache/delete', [VideoController::class, 'deleteCache'])->name('videos.cache.delete');
     Route::post('/videos/watched/toggle', [VideoController::class, 'toggleWatchStatus'])->name('videos.watched.toggle');
     Route::post('/videos/progress', [VideoController::class, 'updateProgress'])->name('videos.progress');

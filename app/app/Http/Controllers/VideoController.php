@@ -270,15 +270,53 @@ class VideoController extends Controller
                 }
             }
 
-            $cmd = "nohup ffmpeg -i " . $inputArg . " -map 0:v -map 0:a? -c:v libx264 -c:a aac -f hls -hls_time 10 -hls_list_size 0 -fflags +genpts -avoid_negative_ts make_zero " . escapeshellarg($playlist) . " > /dev/null 2>&1 &";
-            Process::run($cmd);
+        // Start conversion
+        $ffmpegLogPath = $outputDir . '/ffmpeg.log';
+        
+        if ($ext === 'vob') {
+            // Detect audio streams to handle single or multi audio correctly
+            $probeCmd = "ffmpeg -i " . $inputArg . " 2>&1 | grep 'Stream #0' | grep 'Audio:' | wc -l";
+            $audioCount = (int) shell_exec($probeCmd);
+            
+            $map = "v:0,agroup:aud,name:Video ";
+            $audioMaps = "-map 0:v:0 ";
+            for ($i = 0; $i < min($audioCount, 2); $i++) {
+                $map .= "a:$i,agroup:aud,name:Track" . ($i + 1) . " ";
+                $audioMaps .= "-map 0:a:$i ";
+            }
+
+            $cmd = "nohup ffmpeg -analyzeduration 100M -probesize 100M -i " . $inputArg . " " .
+                   $audioMaps .
+                   "-c:v libx264 -preset ultrafast -pix_fmt yuv420p -vf yadif " .
+                   "-c:a aac -ac 2 -ar 44100 " .
+                   "-f hls -hls_time 10 -hls_list_size 0 " .
+                   "-master_pl_name index.m3u8 " .
+                   "-hls_segment_filename " . escapeshellarg($outputDir . "/s%v_%d.ts") . " " .
+                   "-var_stream_map \"" . trim($map) . "\" " .
+                   "-fflags +genpts+igndts -avoid_negative_ts make_zero " .
+                   escapeshellarg($outputDir . "/p%v.m3u8") . " > " . escapeshellarg($ffmpegLogPath) . " 2>&1 &";
+        } else {
+            // Standard single-stream HLS for other formats
+            $cmd = "nohup ffmpeg -i " . $inputArg . " -map 0:v:0 -map 0:a:0? " .
+                   "-c:v libx264 -preset ultrafast -pix_fmt yuv420p -c:a aac -ar 44100 " .
+                   "-f hls -hls_time 10 -hls_list_size 0 " .
+                   escapeshellarg($playlist) . " > " . escapeshellarg($ffmpegLogPath) . " 2>&1 &";
+        }
+        
+        Process::run($cmd);
         }
     }
 
     public function serveHls($hash, $file)
     {
+        // Support files in subdirectories (e.g., v0/index.m3u8)
         $path = $this->hlsCachePath . '/' . $hash . '/' . $file;
-        if (!File::exists($path)) abort(404);
+
+        // If not found directly, check if it's a relative path request within the hash dir
+        if (!File::exists($path)) {
+            abort(404);
+        }
+
         return response()->file($path);
     }
 
