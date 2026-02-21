@@ -161,6 +161,22 @@ class VideoController extends Controller
             abort(404);
         }
 
+        $filename = basename($fullPath);
+        $directory = dirname($fullPath);
+
+        // Redirect ALL VOB files to VTS_01_1.VOB if it exists (except the file itself)
+        if (strtolower(pathinfo($filename, PATHINFO_EXTENSION)) === 'vob' && 
+            strtoupper($filename) !== 'VTS_01_1.VOB') {
+            
+            $potentialFiles = File::files($directory);
+            foreach ($potentialFiles as $f) {
+                if (strtoupper($f->getFilename()) === 'VTS_01_1.VOB') {
+                    $relativePath = str_replace($this->videoRoot . '/', '', $f->getRealPath());
+                    return redirect()->route('videos.watch', ['path' => $relativePath]);
+                }
+            }
+        }
+
         $video = $this->getOrCreateVideo(rawurldecode($path), 'file');
 
         // Mark as watched
@@ -231,20 +247,30 @@ class VideoController extends Controller
 
             if ($ext === 'vob') {
                 $directory = dirname($inputPath);
-                $files = File::files($directory);
-                $vobFiles = [];
-                foreach ($files as $file) {
-                    $fileName = $file->getFilename();
-                    $fileExt = strtolower($file->getExtension());
-                    if ($fileExt === 'vob' && strtoupper($fileName) !== 'VIDEO_TS.VOB' && !str_ends_with(strtoupper($fileName), '0.VOB')) {
-                        $vobFiles[] = $file->getRealPath();
+                $fileName = basename($inputPath);
+                $prefix = null;
+
+                if (preg_match('/^(VTS_\d+)_/i', $fileName, $matches)) {
+                    $prefix = strtoupper($matches[1]);
+                }
+
+                if ($prefix) {
+                    $vobFiles = [];
+                    foreach (File::files($directory) as $file) {
+                        $currentName = strtoupper($file->getFilename());
+                        if (str_starts_with($currentName, $prefix . '_') && str_ends_with($currentName, '.VOB') && !str_ends_with($currentName, '_0.VOB')) {
+                            $vobFiles[] = $file->getRealPath();
+                        }
+                    }
+                    sort($vobFiles);
+                    if (!empty($vobFiles)) {
+                        $concatString = 'concat:' . implode('|', $vobFiles);
+                        $inputArg = escapeshellarg($concatString);
                     }
                 }
-                sort($vobFiles);
-                $inputArg = escapeshellarg('concat:' . implode('|', $vobFiles));
             }
 
-            $cmd = "nohup ffmpeg -i " . $inputArg . " -map 0:v -map 0:a -c:v libx264 -c:a aac -f hls -hls_time 10 -hls_list_size 0 " . escapeshellarg($playlist) . " > /dev/null 2>&1 &";
+            $cmd = "nohup ffmpeg -i " . $inputArg . " -map 0:v -map 0:a? -c:v libx264 -c:a aac -f hls -hls_time 10 -hls_list_size 0 -fflags +genpts -avoid_negative_ts make_zero " . escapeshellarg($playlist) . " > /dev/null 2>&1 &";
             Process::run($cmd);
         }
     }
