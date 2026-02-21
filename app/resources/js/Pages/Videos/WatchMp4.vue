@@ -26,6 +26,15 @@ const props = defineProps({
 const video = ref(null);
 let updateInterval = null;
 
+const playVideo = () => {
+    const v = video.value;
+    if (!v) return;
+    
+    v.play().catch(error => {
+        console.warn("Autoplay was prevented by browser:", error);
+    });
+};
+
 const backLink = computed(() => {
     if (!props.path) return route('videos.index');
     const parts = props.path.split('/');
@@ -48,6 +57,7 @@ onMounted(() => {
     if (v && props.lastPosition > 0) {
         v.currentTime = props.lastPosition;
     }
+    playVideo();
 
     // Save every 10 seconds
     updateInterval = setInterval(() => {

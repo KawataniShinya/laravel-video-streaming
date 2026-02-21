@@ -29,8 +29,26 @@ const props = defineProps({
 });
 
 const video = ref(null);
+const audioTracks = ref([]);
+const currentAudioTrack = ref(-1);
 let hls = null;
 let updateInterval = null;
+
+const setAudioTrack = (index) => {
+    if (hls) {
+        hls.audioTrack = index;
+        currentAudioTrack.value = index;
+    }
+};
+
+const playVideo = () => {
+    const v = video.value;
+    if (!v) return;
+    
+    v.play().catch(error => {
+        console.warn("Autoplay was prevented by browser:", error);
+    });
+};
 
 const backLink = computed(() => {
     if (!props.path) return route('videos.index');
@@ -64,7 +82,12 @@ onMounted(() => {
             if (props.lastPosition > 0) {
                 v.currentTime = props.lastPosition;
             }
-            v.play();
+            playVideo();
+        });
+
+        hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, function (event, data) {
+            audioTracks.value = data.audioTracks;
+            currentAudioTrack.value = hls.audioTrack;
         });
         
         hls.on(Hls.Events.ERROR, function (event, data) {
@@ -91,7 +114,7 @@ onMounted(() => {
             if (props.lastPosition > 0) {
                 v.currentTime = props.lastPosition;
             }
-            v.play();
+            playVideo();
         });
     }
 
@@ -139,6 +162,34 @@ onBeforeUnmount(() => {
                         <div class="mb-4">
                             <Link :href="backLink" class="text-blue-600 hover:text-blue-800">&larr; Back to Folder</Link>
                         </div>
+
+                        <!-- Audio Track Selection -->
+                        <div v-if="audioTracks.length > 1" class="mb-4 p-3 bg-gray-100 rounded-lg flex items-center gap-3">
+                            <span class="text-sm font-bold text-gray-700">Audio Track:</span>
+                            <div class="flex gap-2">
+                                <button 
+                                    v-for="(track, index) in audioTracks" 
+                                    :key="index"
+                                    @click="setAudioTrack(index)"
+                                    :class="[
+                                        'px-3 py-1 text-xs rounded font-medium transition',
+                                        currentAudioTrack === index 
+                                            ? 'bg-blue-600 text-white shadow' 
+                                            : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-50'
+                                    ]"
+                                >
+                                    {{ track.name || `Track ${index + 1}` }}
+                                </button>
+                            </div>
+                        </div>
+
+                        <div v-if="isAutoplayBlocked" class="mb-4 p-4 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 flex justify-between items-center">
+                            <span>Autoplay was blocked by your browser. Please click play to start.</span>
+                            <button @click="playVideo" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-1 px-4 rounded">
+                                Play Now
+                            </button>
+                        </div>
+
                         <p class="text-sm text-gray-500 mb-2">Transcoding and streaming via HLS...</p>
                         
                         <video ref="video" controls autoplay class="w-full shadow-lg rounded"></video>
