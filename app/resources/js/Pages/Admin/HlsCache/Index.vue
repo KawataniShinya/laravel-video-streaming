@@ -11,6 +11,14 @@ const props = defineProps({
         type: String,
         required: true,
     },
+    freeDiskSpace: {
+        type: String,
+        required: true,
+    },
+    totalDiskSpace: {
+        type: String,
+        required: true,
+    },
 });
 
 const form = useForm({});
@@ -46,9 +54,14 @@ const deleteAllCaches = () => {
             <div class="mx-auto max-w-7xl sm:px-6 lg:px-8">
                 <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
                     <div class="p-6 text-gray-900">
-                        <div class="flex justify-between items-center mb-6">
-                            <div class="text-lg font-medium">
-                                Total Cache Size: <span class="font-bold">{{ totalSize }}</span>
+                        <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                            <div class="space-y-1">
+                                <div class="text-lg font-medium">
+                                    Total Cache Size: <span class="font-bold text-blue-600">{{ totalSize }}</span>
+                                </div>
+                                <div class="text-sm text-gray-500">
+                                    Disk Space: <span class="font-semibold">{{ freeDiskSpace }}</span> free of <span class="font-semibold">{{ totalDiskSpace }}</span>
+                                </div>
                             </div>
                             <button
                                 @click="deleteAllCaches"

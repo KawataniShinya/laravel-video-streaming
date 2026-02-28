@@ -74,9 +74,18 @@ class HlsCacheController extends Controller
             return $b['size_bytes'] <=> $a['size_bytes'];
         });
 
+        $diskPath = $this->hlsCachePath;
+        if (!File::exists($diskPath)) {
+            $diskPath = storage_path();
+        }
+        $freeSpace = disk_free_space($diskPath);
+        $totalDiskSpace = disk_total_space($diskPath);
+
         return Inertia::render('Admin/HlsCache/Index', [
             'caches' => $caches,
             'totalSize' => $this->formatBytes($totalSize),
+            'freeDiskSpace' => $this->formatBytes($freeSpace),
+            'totalDiskSpace' => $this->formatBytes($totalDiskSpace),
         ]);
     }
 
