@@ -130,8 +130,19 @@ class VideoController extends Controller
 
         // Attach statuses
         foreach ($items as &$item) {
-            $item['is_watched'] = isset($watchedVideoIds[$item['id']]);
-            $item['is_favorited'] = isset($favoriteVideoIds[$item['id']]);
+            $isWatched = isset($watchedVideoIds[$item['id']]);
+            $isFavorited = isset($favoriteVideoIds[$item['id']]);
+
+            // For VOB files, only show status for the main entry point (VTS_01_1.VOB)
+            if ($item['type'] === 'file' && isset($item['ext']) && $item['ext'] === 'vob') {
+                if (strtoupper(basename($item['path'])) !== 'VTS_01_1.VOB') {
+                    $isWatched = false;
+                    $isFavorited = false;
+                }
+            }
+
+            $item['is_watched'] = $isWatched;
+            $item['is_favorited'] = $isFavorited;
         }
 
         // Breadcrumbs
