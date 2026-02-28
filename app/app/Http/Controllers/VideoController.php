@@ -176,9 +176,9 @@ class VideoController extends Controller
         $directory = dirname($fullPath);
 
         // Redirect ALL VOB files to VTS_01_1.VOB if it exists (except the file itself)
-        if (strtolower(pathinfo($filename, PATHINFO_EXTENSION)) === 'vob' && 
+        if (strtolower(pathinfo($filename, PATHINFO_EXTENSION)) === 'vob' &&
             strtoupper($filename) !== 'VTS_01_1.VOB') {
-            
+
             $potentialFiles = File::files($directory);
             foreach ($potentialFiles as $f) {
                 if (strtoupper($f->getFilename()) === 'VTS_01_1.VOB') {
@@ -281,40 +281,49 @@ class VideoController extends Controller
                 }
             }
 
-        // Start conversion
-        $ffmpegLogPath = $outputDir . '/ffmpeg.log';
-        
-        if ($ext === 'vob') {
-            // Detect audio streams to handle single or multi audio correctly
+            // Detect audio streams to handle single, multi, or no audio correctly
             $probeCmd = "ffmpeg -i " . $inputArg . " 2>&1 | grep 'Stream #0' | grep 'Audio:' | wc -l";
             $audioCount = (int) shell_exec($probeCmd);
-            
-            $map = "v:0,agroup:aud,name:Video ";
-            $audioMaps = "-map 0:v:0 ";
-            for ($i = 0; $i < min($audioCount, 2); $i++) {
-                $map .= "a:$i,agroup:aud,name:Track" . ($i + 1) . " ";
-                $audioMaps .= "-map 0:a:$i ";
+
+            // Build stream mapping
+            $videoMaps = "-map 0:v:0 -map 0:v:0"; // Two video streams (High/Low)
+            $audioMaps = "";
+            $streamMap = "";
+
+            if ($audioCount > 0) {
+                $streamMap = "v:0,agroup:aud,name:High v:1,agroup:aud,name:Low ";
+                for ($i = 0; $i < min($audioCount, 2); $i++) {
+                    $streamMap .= "a:$i,agroup:aud,name:Track" . ($i + 1) . " ";
+                    $audioMaps .= " -map 0:a:$i";
+                }
+            } else {
+                $streamMap = "v:0,name:High v:1,name:Low";
             }
 
+            $ffmpegLogPath = $outputDir . '/ffmpeg.log';
+
+            // Filters: High keeps original size (with deinterlace for VOB), Low scales to 360p
+            $vfHigh = ($ext === 'vob') ? "yadif" : "null";
+            $vfLow  = ($ext === 'vob') ? "yadif,scale=-2:360" : "scale=-2:360";
+
+            $vobFlags = ($ext === 'vob') ? "-fflags +genpts+igndts -avoid_negative_ts make_zero" : "";
+
             $cmd = "nohup ffmpeg -analyzeduration 100M -probesize 100M -i " . $inputArg . " " .
-                   $audioMaps .
-                   "-c:v libx264 -preset ultrafast -pix_fmt yuv420p -vf yadif " .
-                   "-c:a aac -ac 2 -ar 44100 " .
+                   $videoMaps . $audioMaps . " " .
+                   // Video 0: High Quality (Original)
+                   "-c:v:0 libx264 -preset ultrafast -pix_fmt yuv420p -filter:v:0 " . $vfHigh . " " .
+                   // Video 1: Low Quality (360p)
+                   "-c:v:1 libx264 -preset ultrafast -pix_fmt yuv420p -filter:v:1 " . $vfLow . " -b:v:1 800k -maxrate:v:1 1200k -bufsize:v:1 1600k " .
+                   // Audio settings
+                   ($audioCount > 0 ? "-c:a aac -ac 2 -ar 44100 " : "") .
                    "-f hls -hls_time 10 -hls_list_size 0 " .
                    "-master_pl_name index.m3u8 " .
                    "-hls_segment_filename " . escapeshellarg($outputDir . "/s%v_%d.ts") . " " .
-                   "-var_stream_map \"" . trim($map) . "\" " .
-                   "-fflags +genpts+igndts -avoid_negative_ts make_zero " .
+                   "-var_stream_map \"" . trim($streamMap) . "\" " .
+                   $vobFlags . " " .
                    escapeshellarg($outputDir . "/p%v.m3u8") . " > " . escapeshellarg($ffmpegLogPath) . " 2>&1 &";
-        } else {
-            // Standard single-stream HLS for other formats
-            $cmd = "nohup ffmpeg -i " . $inputArg . " -map 0:v:0 -map 0:a:0? " .
-                   "-c:v libx264 -preset ultrafast -pix_fmt yuv420p -c:a aac -ar 44100 " .
-                   "-f hls -hls_time 10 -hls_list_size 0 " .
-                   escapeshellarg($playlist) . " > " . escapeshellarg($ffmpegLogPath) . " 2>&1 &";
-        }
-        
-        Process::run($cmd);
+
+            Process::run($cmd);
         }
     }
 
