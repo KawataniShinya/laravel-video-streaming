@@ -116,7 +116,10 @@ const getParentPath = (path) => {
                                             <Link :href="route('videos.watch', { path: item.path.replace(/#/g, '%23') })" class="flex items-center group flex-grow px-6 py-4">
                                                 <div class="flex items-center">
                                                     <svg class="w-6 h-6 text-blue-500 mr-3 fill-current" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                                                    <span class="text-gray-900">{{ item.name }}</span>
+                                                    <div class="flex flex-col">
+                                                        <span class="text-gray-900">{{ item.name }}</span>
+                                                        <span v-if="item.size" class="text-xs text-gray-400">{{ item.size }}</span>
+                                                    </div>
                                                 </div>
                                                 <span class="bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity ml-2">Watch</span>
                                             </Link>
