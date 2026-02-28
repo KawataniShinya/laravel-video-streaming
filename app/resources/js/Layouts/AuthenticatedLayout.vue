@@ -193,6 +193,15 @@ const showingNavigationDropdown = ref(false);
             <main>
                 <slot />
             </main>
+
+            <!-- Footer -->
+            <footer class="py-12 border-t border-gray-100 mt-12">
+                <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+                    <div class="text-center text-sm text-gray-500">
+                        &copy; 2026 KawataniShinya. All rights reserved.
+                    </div>
+                </div>
+            </footer>
         </div>
     </div>
 </template>

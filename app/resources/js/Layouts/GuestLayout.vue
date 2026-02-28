@@ -18,5 +18,9 @@ import { Link } from '@inertiajs/vue3';
         >
             <slot />
         </div>
+
+        <div class="mt-8 text-center text-sm text-gray-400">
+            &copy; 2026 KawataniShinya
+        </div>
     </div>
 </template>
