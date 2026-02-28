@@ -121,7 +121,7 @@ const getParentPath = (path) => {
                                                 <span class="bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity ml-2">Watch</span>
                                             </Link>
                                             
-                                            <div class="flex items-center mr-4 gap-2">
+                                            <div v-if="!(item.ext === 'vob' && item.name.toUpperCase() !== 'VTS_01_1.VOB')" class="flex items-center mr-4 gap-2">
                                                 <FavoriteToggle :path="item.path" :type="item.type" :is-favorited="item.is_favorited" />
 
                                                 <div v-if="item.is_cached" class="mr-2">

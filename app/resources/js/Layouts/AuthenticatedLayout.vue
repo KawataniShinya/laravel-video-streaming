@@ -11,11 +11,10 @@ const showingNavigationDropdown = ref(false);
 </script>
 
 <template>
-    <div>
-        <div class="min-h-screen bg-gray-100">
-            <nav
-                class="border-b border-gray-100 bg-white"
-            >
+    <div class="h-screen flex flex-col overflow-hidden bg-gray-100">
+        <!-- Navigation & Header (Fixed at top) -->
+        <div class="flex-none shadow-sm z-10 bg-white">
+            <nav class="border-b border-gray-100">
                 <!-- Primary Navigation Menu -->
                 <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
                     <div class="flex h-16 justify-between">
@@ -181,18 +180,27 @@ const showingNavigationDropdown = ref(false);
 
             <!-- Page Heading -->
             <header
-                class="bg-white shadow"
+                class="bg-white border-b border-gray-100"
                 v-if="$slots.header"
             >
-                <div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+                <div class="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
                     <slot name="header" />
                 </div>
             </header>
-
-            <!-- Page Content -->
-            <main>
-                <slot />
-            </main>
         </div>
+
+        <!-- Scrollable Page Content -->
+        <main class="flex-grow overflow-y-auto">
+            <slot />
+        </main>
+
+        <!-- Footer (Fixed at bottom) -->
+        <footer class="flex-none py-4 border-t border-gray-200 bg-white z-10">
+            <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+                <div class="text-center text-xs text-gray-500">
+                    &copy; 2026 KawataniShinya. All rights reserved.
+                </div>
+            </div>
+        </footer>
     </div>
 </template>
