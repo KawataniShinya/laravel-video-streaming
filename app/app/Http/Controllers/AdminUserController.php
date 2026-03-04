@@ -14,8 +14,13 @@ use Illuminate\Validation\Rules;
 use Inertia\Inertia;
 use Inertia\Response;
 
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\DB;
+
 class AdminUserController extends Controller
 {
+    private string $videoRoot = '/videos';
+
     /**
      * Ensure the user is an admin.
      */
@@ -88,7 +93,7 @@ class AdminUserController extends Controller
         $this->authorizeAdmin();
 
         return Inertia::render('Admin/Users/Edit', [
-            'user' => $user,
+            'user' => $user->load('allowedPaths'),
         ]);
     }
 
@@ -137,5 +142,96 @@ class AdminUserController extends Controller
         $user->delete();
 
         return redirect()->route('admin.users.index');
+    }
+
+    /**
+     * Show allowed paths editor for user.
+     */
+    public function editAllowedPaths(Request $request, User $user): Response
+    {
+        $this->authorizeAdmin();
+
+        $subpath = $request->query('path', '');
+        if ($subpath) {
+            $subpath = rawurldecode($subpath);
+        }
+
+        $fullPath = $this->videoRoot;
+        if ($subpath) {
+            $fullPath .= '/' . $subpath;
+        }
+
+        if (!File::exists($fullPath) || !File::isDirectory($fullPath)) {
+            $subpath = '';
+            $fullPath = $this->videoRoot;
+        }
+
+        $items = [];
+        // Scan directories
+        $directories = File::directories($fullPath);
+        foreach ($directories as $dir) {
+            $relativePath = ($subpath ? $subpath . '/' : '') . basename($dir);
+            $items[] = [
+                'type' => 'folder',
+                'name' => basename($dir),
+                'path' => $relativePath,
+            ];
+        }
+
+        // Scan files
+        $files = File::files($fullPath);
+        foreach ($files as $file) {
+            $relativePath = ($subpath ? $subpath . '/' : '') . $file->getFilename();
+            $items[] = [
+                'type' => 'file',
+                'name' => $file->getFilename(),
+                'path' => $relativePath,
+            ];
+        }
+
+        return Inertia::render('Admin/Users/AllowedPaths', [
+            'user' => $user->load('allowedPaths'),
+            'items' => $items,
+            'currentPath' => $subpath,
+        ]);
+    }
+
+    public function updateAllowedPaths(Request $request, User $user): RedirectResponse
+    {
+        $this->authorizeAdmin();
+
+        $request->validate([
+            'paths' => 'array',
+            'paths.*' => 'nullable|string',
+        ]);
+
+        $paths = $request->input('paths', []);
+
+        // Remove redundant paths (if parent is selected, remove children)
+        sort($paths);
+        $filteredPaths = [];
+        foreach ($paths as $path) {
+            $path = $path ?? ''; // Convert null back to empty string for root
+            $path = trim($path, '/');
+            $isRedundant = false;
+            foreach ($filteredPaths as $alreadyAdded) {
+                if ($alreadyAdded === '' || str_starts_with($path, $alreadyAdded . '/')) {
+                    $isRedundant = true;
+                    break;
+                }
+            }
+            if (!$isRedundant) {
+                $filteredPaths[] = $path;
+            }
+        }
+
+        DB::transaction(function () use ($user, $filteredPaths) {
+            $user->allowedPaths()->delete();
+            foreach ($filteredPaths as $path) {
+                $user->allowedPaths()->create(['path' => $path]);
+            }
+        });
+
+        return redirect()->route('admin.users.edit', $user->id);
     }
 }

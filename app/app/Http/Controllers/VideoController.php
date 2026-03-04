@@ -15,8 +15,8 @@ use Inertia\Inertia;
 
 class VideoController extends Controller
 {
-    private $videoRoot = '/videos';
-    private $hlsCachePath;
+    private string $videoRoot = '/videos';
+    private string $hlsCachePath;
 
     public function __construct()
     {
@@ -73,6 +73,12 @@ class VideoController extends Controller
     public function index($path = null)
     {
         $fullPath = $this->resolvePath($path);
+        $user = Auth::user();
+
+        // Security check: User must have access to the current directory
+        if (!$user->canAccessPath($path ?? '')) {
+            return redirect()->route('dashboard')->with('error', 'You do not have access to this folder.');
+        }
 
         if (!$fullPath || !File::isDirectory($fullPath)) {
             if ($fullPath && File::isFile($fullPath)) {
@@ -88,6 +94,10 @@ class VideoController extends Controller
         $directories = File::directories($fullPath);
         foreach ($directories as $dir) {
             $relativePath = ($path ? $path . '/' : '') . basename($dir);
+
+            // If user can access this path (either directly or as a parent of allowed paths)
+            if (!$user->canAccessPath($relativePath)) continue;
+
             $video = $this->getOrCreateVideo($relativePath, 'folder');
 
             $items[] = [
@@ -104,6 +114,10 @@ class VideoController extends Controller
             $ext = strtolower($file->getExtension());
             if (in_array($ext, ['mp4', 'm2ts', 'avi', 'flv', 'vob'])) {
                 $relativePath = ($path ? $path . '/' : '') . $file->getFilename();
+
+                // Only include file if user can access it
+                if (!$user->canAccessPath($relativePath)) continue;
+
                 $video = $this->getOrCreateVideo($relativePath, 'file');
 
                 $isCached = false;
@@ -177,6 +191,13 @@ class VideoController extends Controller
 
     public function watch($path)
     {
+        $user = Auth::user();
+        $path = rawurldecode($path);
+
+        if (!$user->canAccessPath($path)) {
+            return redirect()->route('dashboard')->with('error', 'You do not have access to this video.');
+        }
+
         $fullPath = $this->resolvePath($path);
 
         if (!$fullPath || !File::isFile($fullPath)) {
@@ -199,7 +220,7 @@ class VideoController extends Controller
             }
         }
 
-        $video = $this->getOrCreateVideo(rawurldecode($path), 'file');
+        $video = $this->getOrCreateVideo($path, 'file');
 
         // Mark as watched
         $view = VideoView::firstOrCreate([
@@ -230,6 +251,13 @@ class VideoController extends Controller
 
     public function stream($path)
     {
+        $user = Auth::user();
+        $path = rawurldecode($path);
+
+        if (!$user->canAccessPath($path)) {
+            abort(403);
+        }
+
         $fullPath = $this->resolvePath($path);
         if (!$fullPath || !File::isFile($fullPath)) abort(404);
 
@@ -239,11 +267,17 @@ class VideoController extends Controller
 
     public function updateProgress(Request $request)
     {
-        $path = $request->input('path');
+        $user = Auth::user();
+        $path = rawurldecode($request->input('path'));
         $time = $request->input('time');
+
+        if (!$user->canAccessPath($path)) {
+            return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 403);
+        }
+
         if (!$path || !is_numeric($time)) return response()->json(['status' => 'error'], 400);
 
-        $video = VideoModel::where('path', rawurldecode($path))->first();
+        $video = VideoModel::where('path', $path)->first();
         if (!$video) return response()->json(['status' => 'error'], 404);
 
         VideoView::updateOrCreate(

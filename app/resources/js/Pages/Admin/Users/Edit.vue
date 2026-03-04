@@ -122,6 +122,35 @@ const submit = () => {
                                 </PrimaryButton>
                             </div>
                         </form>
+
+                        <hr class="my-8" />
+
+                        <div class="mt-8">
+                            <div class="flex items-center justify-between">
+                                <h3 class="text-lg font-medium text-gray-900">Allowed Access Paths</h3>
+                                <Link
+                                    v-if="user.role === 'user'"
+                                    :href="route('admin.users.allowed-paths.edit', user.id)"
+                                    class="inline-flex items-center px-4 py-2 bg-blue-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-blue-700 active:bg-blue-900 focus:outline-none focus:border-blue-900 focus:ring ring-blue-300 disabled:opacity-25 transition ease-in-out duration-150"
+                                >
+                                    Edit Allowed Paths
+                                </Link>
+                            </div>
+
+                            <div v-if="user.role === 'admin'" class="mt-4 p-4 bg-gray-50 rounded-md text-sm text-gray-600">
+                                <p>Administrators have access to all paths by default.</p>
+                            </div>
+                            <div v-else class="mt-4">
+                                <ul v-if="user.allowed_paths && user.allowed_paths.length > 0" class="divide-y divide-gray-200 border border-gray-200 rounded-md">
+                                    <li v-for="allowed in user.allowed_paths" :key="allowed.id" class="px-4 py-3 text-sm text-gray-700 bg-white">
+                                        <code class="bg-gray-100 px-2 py-1 rounded">{{ allowed.path === '' ? '(Root Access)' : allowed.path }}</code>
+                                    </li>
+                                </ul>
+                                <div v-else class="p-4 bg-yellow-50 border-l-4 border-yellow-400 text-yellow-700 text-sm">
+                                    <p>No paths allowed. This user currently cannot access the Video Library.</p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
