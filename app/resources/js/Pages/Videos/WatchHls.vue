@@ -33,8 +33,26 @@ const audioTracks = ref([]);
 const currentAudioTrack = ref(-1);
 const levels = ref([]);
 const currentLevel = ref(-1); // -1 is Auto
+const isWaiting = ref(false);
+const countdown = ref(10);
 let hls = null;
 let updateInterval = null;
+let countdownInterval = null;
+
+const startCountdown = () => {
+    if (isWaiting.value) return;
+    isWaiting.value = true;
+    countdown.value = 10;
+    
+    if (countdownInterval) clearInterval(countdownInterval);
+    countdownInterval = setInterval(() => {
+        countdown.value--;
+        if (countdown.value <= 0) {
+            clearInterval(countdownInterval);
+            window.location.reload();
+        }
+    }, 1000);
+};
 
 const setAudioTrack = (index) => {
     if (hls) {
@@ -105,8 +123,8 @@ onMounted(() => {
             if (data.fatal) {
                 switch (data.type) {
                 case Hls.ErrorTypes.NETWORK_ERROR:
-                    console.log("fatal network error encountered, try to recover");
-                    hls.startLoad();
+                    console.log("fatal network error encountered, starting countdown for reload");
+                    startCountdown();
                     break;
                 case Hls.ErrorTypes.MEDIA_ERROR:
                     console.log("fatal media error encountered, try to recover");
@@ -122,10 +140,12 @@ onMounted(() => {
     else if (v.canPlayType('application/vnd.apple.mpegurl')) {
         v.src = videoSrc;
         v.addEventListener('loadedmetadata', function() {
-            if (props.lastPosition > 0) {
-                v.currentTime = props.lastPosition;
-            }
             playVideo();
+        });
+        // Native HLS error handling (e.g. Safari on mobile)
+        v.addEventListener('error', function() {
+            console.log("Native video error, starting countdown");
+            startCountdown();
         });
     }
 
@@ -143,6 +163,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
     if (updateInterval) clearInterval(updateInterval);
+    if (countdownInterval) clearInterval(countdownInterval);
     const v = video.value;
     if (v && v.currentTime > 0) {
         saveProgress(v.currentTime);
@@ -227,7 +248,22 @@ onBeforeUnmount(() => {
 
                         <p class="text-sm text-gray-500 mb-2">Transcoding and streaming via HLS...</p>
 
-                        <video ref="video" controls autoplay class="w-full shadow-lg rounded"></video>
+                        <div class="relative w-full aspect-video bg-black rounded shadow-lg overflow-hidden mb-4">
+                            <!-- Waiting Overlay -->
+                            <div v-if="isWaiting" class="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black bg-opacity-80 text-white p-6 text-center">
+                                <svg class="animate-spin h-10 w-10 mb-4 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                <h3 class="text-lg font-bold mb-2">Preparing video...</h3>
+                                <p class="text-sm text-gray-300 mb-4">The video is being transcoded for the first time. Please wait a moment.</p>
+                                <div class="text-3xl font-mono font-bold text-blue-400">
+                                    Reloading in {{ countdown }}...
+                                </div>
+                            </div>
+
+                            <video ref="video" controls autoplay class="w-full h-full"></video>
+                        </div>
                     </div>
                 </div>
             </div>
