@@ -84,13 +84,12 @@ onMounted(() => {
     const v = video.value;
 
     if (Hls.isSupported()) {
-        hls = new Hls();
+        hls = new Hls({
+            startPosition: props.lastPosition || 0,
+        });
         hls.loadSource(videoSrc);
         hls.attachMedia(v);
         hls.on(Hls.Events.MANIFEST_PARSED, function() {
-            if (props.lastPosition > 0) {
-                v.currentTime = props.lastPosition;
-            }
             levels.value = hls.levels;
             // hls.loadLevel defaults to -1 (Auto)
             currentLevel.value = hls.loadLevel;
