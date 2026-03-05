@@ -361,7 +361,7 @@ class VideoController extends Controller
                    "-c:v:1 libx264 -preset ultrafast -pix_fmt yuv420p -filter:v:1 " . $vfLow . " -b:v:1 800k -maxrate:v:1 1200k -bufsize:v:1 1600k " .
                    // Audio settings
                    ($audioCount > 0 ? "-c:a aac -ac 2 -ar 44100 " : "") .
-                   "-f hls -hls_time 10 -hls_list_size 0 " .
+                   "-f hls -hls_time 10 -hls_list_size 0 -hls_playlist_type event " .
                    "-master_pl_name index.m3u8 " .
                    "-hls_segment_filename " . escapeshellarg($outputDir . "/s%v_%d.ts") . " " .
                    "-var_stream_map \"" . trim($streamMap) . "\" " .
