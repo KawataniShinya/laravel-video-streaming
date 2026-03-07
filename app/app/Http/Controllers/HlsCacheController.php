@@ -61,14 +61,30 @@ class HlsCacheController extends Controller
                 $size = $this->getDirectorySize($dir);
                 $totalSize += $size;
 
-                $isComplete = File::exists($dir . '/index.m3u8');
+                $pidFile = $dir . '/ffmpeg.pid';
+                $isRunning = false;
+                if (File::exists($pidFile)) {
+                    $pid = trim(File::get($pidFile));
+                    if (is_numeric($pid)) {
+                        $isRunning = $this->isProcessRunning($pid);
+                    }
+                }
+
+                $hasIndex = File::exists($dir . '/index.m3u8');
+                
+                $status = 'failed';
+                if ($isRunning) {
+                    $status = 'transcoding';
+                } elseif ($hasIndex) {
+                    $status = 'completed';
+                }
 
                 $caches[] = [
                     'hash' => $hash,
                     'path' => $knownVideos[$hash] ?? 'Unknown (Source path not in database)',
                     'size' => $this->formatBytes($size),
                     'size_bytes' => $size,
-                    'is_complete' => $isComplete,
+                    'status' => $status,
                 ];
             }
         }
@@ -90,6 +106,12 @@ class HlsCacheController extends Controller
             'freeDiskSpace' => $this->formatBytes($freeSpace),
             'totalDiskSpace' => $this->formatBytes($totalDiskSpace),
         ]);
+    }
+
+    private function isProcessRunning($pid)
+    {
+        $output = shell_exec("ps -p $pid");
+        return strpos($output, (string)$pid) !== false;
     }
 
     public function destroy($hash)

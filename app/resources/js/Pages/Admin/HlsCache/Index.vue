@@ -87,11 +87,14 @@ const deleteAllCaches = () => {
                                     <tr v-for="cache in caches" :key="cache.hash">
                                         <td class="px-6 py-4 text-sm text-gray-900 break-all">{{ cache.path }}</td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm">
-                                            <span v-if="cache.is_complete" class="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full font-semibold">
+                                            <span v-if="cache.status === 'completed'" class="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full font-semibold">
                                                 Completed
                                             </span>
-                                            <span v-else class="bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded-full font-semibold animate-pulse">
+                                            <span v-else-if="cache.status === 'transcoding'" class="bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded-full font-semibold animate-pulse">
                                                 Transcoding...
+                                            </span>
+                                            <span v-else class="bg-red-100 text-red-800 text-xs px-2 py-1 rounded-full font-semibold">
+                                                Failed / Incomplete
                                             </span>
                                         </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ cache.size }}</td>
