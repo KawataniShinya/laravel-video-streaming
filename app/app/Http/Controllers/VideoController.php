@@ -70,6 +70,21 @@ class VideoController extends Controller
         return $path;
     }
 
+    private function getBreadcrumbs($path)
+    {
+        $breadcrumbs = [];
+        if ($path) {
+            $parts = explode('/', $path);
+            $accumulated = '';
+            foreach ($parts as $part) {
+                if ($part === '') continue;
+                $accumulated .= ($accumulated ? '/' : '') . $part;
+                $breadcrumbs[] = ['name' => $part, 'path' => $accumulated];
+            }
+        }
+        return $breadcrumbs;
+    }
+
     public function index($path = null)
     {
         $fullPath = $this->resolvePath($path);
@@ -170,22 +185,10 @@ class VideoController extends Controller
             $item['is_favorited'] = $isFavorited;
         }
 
-        // Breadcrumbs
-        $breadcrumbs = [];
-        if ($path) {
-            $parts = explode('/', $path);
-            $accumulated = '';
-            foreach ($parts as $part) {
-                if ($part === '') continue;
-                $accumulated .= ($accumulated ? '/' : '') . $part;
-                $breadcrumbs[] = ['name' => $part, 'path' => $accumulated];
-            }
-        }
-
         return Inertia::render('Videos/Index', [
             'items' => $items,
             'currentPath' => $path,
-            'breadcrumbs' => $breadcrumbs
+            'breadcrumbs' => $this->getBreadcrumbs($path)
         ]);
     }
 
@@ -236,6 +239,7 @@ class VideoController extends Controller
             'path' => $path,
             'lastPosition' => $view->last_position ?? 0,
             'isFavorited' => Favorite::where('user_id', Auth::id())->where('video_id', $video->id)->exists(),
+            'breadcrumbs' => $this->getBreadcrumbs($path),
         ];
 
         if ($ext === 'mp4') {
@@ -248,7 +252,6 @@ class VideoController extends Controller
 
         abort(404);
     }
-
     public function stream($path)
     {
         $user = Auth::user();
