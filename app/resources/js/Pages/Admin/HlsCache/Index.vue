@@ -1,6 +1,7 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, useForm } from '@inertiajs/vue3';
+import { ref, computed } from 'vue';
 
 const props = defineProps({
     caches: {
@@ -21,7 +22,23 @@ const props = defineProps({
     },
 });
 
-const form = useForm({});
+const selectedHashes = ref([]);
+
+const toggleAll = (e) => {
+    if (e.target.checked) {
+        selectedHashes.value = props.caches.map(c => c.hash);
+    } else {
+        selectedHashes.value = [];
+    }
+};
+
+const isAllSelected = computed(() => {
+    return props.caches.length > 0 && selectedHashes.value.length === props.caches.length;
+});
+
+const form = useForm({
+    hashes: []
+});
 
 const deleteCache = (hash) => {
     if (confirm('Are you sure you want to delete this cache?')) {
@@ -31,10 +48,28 @@ const deleteCache = (hash) => {
     }
 };
 
+const deleteSelected = () => {
+    const selectedItems = props.caches.filter(c => selectedHashes.value.includes(c.hash));
+    const paths = selectedItems.map(i => i.path).join('\n');
+    
+    if (confirm(`Are you sure you want to delete the following ${selectedHashes.value.length} caches?\n\n${paths}`)) {
+        form.hashes = selectedHashes.value;
+        form.post(route('admin.hls.destroy_multiple'), {
+            preserveScroll: true,
+            onSuccess: () => {
+                selectedHashes.value = [];
+            }
+        });
+    }
+};
+
 const deleteAllCaches = () => {
     if (confirm('Are you sure you want to delete ALL caches? This action cannot be undone.')) {
         form.delete(route('admin.hls.destroy_all'), {
             preserveScroll: true,
+            onSuccess: () => {
+                selectedHashes.value = [];
+            }
         });
     }
 };
@@ -63,20 +98,37 @@ const deleteAllCaches = () => {
                                     Disk Space: <span class="font-semibold">{{ freeDiskSpace }}</span> free of <span class="font-semibold">{{ totalDiskSpace }}</span>
                                 </div>
                             </div>
-                            <button
-                                @click="deleteAllCaches"
-                                class="bg-red-600 hover:bg-red-800 text-white font-bold py-2 px-4 rounded"
-                                :disabled="caches.length === 0"
-                                :class="{'opacity-50 cursor-not-allowed': caches.length === 0}"
-                            >
-                                Delete All Caches
-                            </button>
+                            <div class="flex gap-3">
+                                <button
+                                    v-if="selectedHashes.length > 0"
+                                    @click="deleteSelected"
+                                    class="bg-orange-600 hover:bg-orange-800 text-white font-bold py-2 px-4 rounded transition shadow-sm"
+                                >
+                                    Delete Selected ({{ selectedHashes.length }})
+                                </button>
+                                <button
+                                    @click="deleteAllCaches"
+                                    class="bg-red-600 hover:bg-red-800 text-white font-bold py-2 px-4 rounded transition shadow-sm"
+                                    :disabled="caches.length === 0"
+                                    :class="{'opacity-50 cursor-not-allowed': caches.length === 0}"
+                                >
+                                    Delete All Caches
+                                </button>
+                            </div>
                         </div>
 
                         <div v-if="caches.length > 0" class="overflow-x-auto">
                             <table class="min-w-full divide-y divide-gray-200">
                                 <thead class="bg-gray-50">
                                     <tr>
+                                        <th scope="col" class="px-6 py-3 text-left">
+                                            <input 
+                                                type="checkbox" 
+                                                :checked="isAllSelected" 
+                                                @change="toggleAll"
+                                                class="rounded border-gray-300 text-blue-600 shadow-sm focus:ring-blue-500"
+                                            >
+                                        </th>
                                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Path (Best Effort)</th>
                                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Size</th>
@@ -84,7 +136,15 @@ const deleteAllCaches = () => {
                                     </tr>
                                 </thead>
                                 <tbody class="bg-white divide-y divide-gray-200">
-                                    <tr v-for="cache in caches" :key="cache.hash">
+                                    <tr v-for="cache in caches" :key="cache.hash" :class="{'bg-blue-50': selectedHashes.includes(cache.hash)}">
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <input 
+                                                type="checkbox" 
+                                                v-model="selectedHashes" 
+                                                :value="cache.hash"
+                                                class="rounded border-gray-300 text-blue-600 shadow-sm focus:ring-blue-500"
+                                            >
+                                        </td>
                                         <td class="px-6 py-4 text-sm text-gray-900 break-all">{{ cache.path }}</td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm">
                                             <span v-if="cache.status === 'completed'" class="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full font-semibold">

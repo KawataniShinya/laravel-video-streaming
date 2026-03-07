@@ -6,6 +6,7 @@ use App\Enums\Role;
 use App\Models\Video as VideoModel;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\File;
+use Illuminate\Http\Request;
 use Inertia\Inertia;
 
 class HlsCacheController extends Controller
@@ -118,6 +119,18 @@ class HlsCacheController extends Controller
     {
         $this->authorizeAdmin();
         $this->stopAndRemoveCache($hash);
+        return redirect()->route('admin.hls.index');
+    }
+
+    public function destroyMultiple(Request $request)
+    {
+        $this->authorizeAdmin();
+        $hashes = $request->input('hashes', []);
+        
+        foreach ($hashes as $hash) {
+            $this->stopAndRemoveCache($hash);
+        }
+        
         return redirect()->route('admin.hls.index');
     }
 
