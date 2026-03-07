@@ -118,7 +118,7 @@ class HlsCacheController extends Controller
     {
         $this->authorizeAdmin();
         $this->stopAndRemoveCache($hash);
-        return redirect()->back();
+        return redirect()->route('admin.hls.index');
     }
 
     public function destroyAll()
@@ -131,7 +131,7 @@ class HlsCacheController extends Controller
                 $this->stopAndRemoveCache($hash);
             }
         }
-        return redirect()->back();
+        return redirect()->route('admin.hls.index');
     }
 
     private function stopAndRemoveCache($hash)

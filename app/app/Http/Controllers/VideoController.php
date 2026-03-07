@@ -390,14 +390,14 @@ class VideoController extends Controller
         if (Auth::user()->role !== Role::Admin->value) abort(403);
 
         $path = $request->input('path');
-        if (!$path) return redirect()->back();
+        if (!$path) return redirect()->route('videos.index');
 
         $video = VideoModel::where('path', rawurldecode($path))->first();
         if ($video) {
             $this->stopAndRemoveCache($video->hash);
         }
 
-        return redirect()->back();
+        return redirect()->route('videos.index', ['path' => $path ? dirname(rawurldecode($path)) : null]);
     }
 
     private function stopAndRemoveCache($hash)
