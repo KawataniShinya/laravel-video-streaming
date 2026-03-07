@@ -78,7 +78,7 @@ const deleteAllCaches = () => {
                                 <thead class="bg-gray-50">
                                     <tr>
                                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Path (Best Effort)</th>
-                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hash</th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Size</th>
                                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
                                     </tr>
@@ -86,7 +86,14 @@ const deleteAllCaches = () => {
                                 <tbody class="bg-white divide-y divide-gray-200">
                                     <tr v-for="cache in caches" :key="cache.hash">
                                         <td class="px-6 py-4 text-sm text-gray-900 break-all">{{ cache.path }}</td>
-                                        <td class="px-6 py-4 text-sm text-gray-500 font-mono">{{ cache.hash }}</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                            <span v-if="cache.is_complete" class="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full font-semibold">
+                                                Completed
+                                            </span>
+                                            <span v-else class="bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded-full font-semibold animate-pulse">
+                                                Transcoding...
+                                            </span>
+                                        </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ cache.size }}</td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                             <button @click="deleteCache(cache.hash)" class="text-red-600 hover:text-red-900">Delete</button>

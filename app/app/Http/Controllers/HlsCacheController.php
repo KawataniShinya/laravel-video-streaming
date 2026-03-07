@@ -61,11 +61,14 @@ class HlsCacheController extends Controller
                 $size = $this->getDirectorySize($dir);
                 $totalSize += $size;
 
+                $isComplete = File::exists($dir . '/index.m3u8');
+
                 $caches[] = [
                     'hash' => $hash,
                     'path' => $knownVideos[$hash] ?? 'Unknown (Source path not in database)',
                     'size' => $this->formatBytes($size),
                     'size_bytes' => $size,
+                    'is_complete' => $isComplete,
                 ];
             }
         }
@@ -92,8 +95,7 @@ class HlsCacheController extends Controller
     public function destroy($hash)
     {
         $this->authorizeAdmin();
-        $dir = $this->hlsCachePath . '/' . $hash;
-        if (File::exists($dir)) File::deleteDirectory($dir);
+        $this->stopAndRemoveCache($hash);
         return redirect()->back();
     }
 
@@ -103,9 +105,26 @@ class HlsCacheController extends Controller
         if (File::exists($this->hlsCachePath)) {
             $directories = File::directories($this->hlsCachePath);
             foreach ($directories as $dir) {
-                File::deleteDirectory($dir);
+                $hash = basename($dir);
+                $this->stopAndRemoveCache($hash);
             }
         }
         return redirect()->back();
+    }
+
+    private function stopAndRemoveCache($hash)
+    {
+        $cacheDir = $this->hlsCachePath . '/' . $hash;
+        if (File::exists($cacheDir)) {
+            $pidFile = $cacheDir . '/ffmpeg.pid';
+            if (File::exists($pidFile)) {
+                $pid = trim(File::get($pidFile));
+                if (is_numeric($pid)) {
+                    // Kill the process
+                    shell_exec("kill -9 $pid > /dev/null 2>&1");
+                }
+            }
+            File::deleteDirectory($cacheDir);
+        }
     }
 }
