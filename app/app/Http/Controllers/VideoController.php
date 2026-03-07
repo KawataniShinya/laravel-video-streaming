@@ -192,6 +192,37 @@ class VideoController extends Controller
         ]);
     }
 
+    public function history()
+    {
+        $user = Auth::user();
+        $views = VideoView::with('video')
+            ->where('user_id', $user->id)
+            ->orderBy('updated_at', 'desc')
+            ->get();
+
+        $items = [];
+        foreach ($views as $view) {
+            $video = $view->video;
+            if (!$video) continue;
+
+            // Only show if user still has access to this path
+            if (!$user->canAccessPath($video->path)) continue;
+
+            $items[] = [
+                'id' => $video->id,
+                'name' => basename($video->path),
+                'path' => $video->path,
+                'last_position' => $view->last_position,
+                'updated_at' => $view->updated_at->format('Y-m-d H:i'),
+                'updated_at_human' => $view->updated_at->diffForHumans(),
+            ];
+        }
+
+        return Inertia::render('Videos/History', [
+            'items' => $items,
+        ]);
+    }
+
     public function watch($path)
     {
         $user = Auth::user();
