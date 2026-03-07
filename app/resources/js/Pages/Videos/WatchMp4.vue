@@ -20,6 +20,10 @@ const props = defineProps({
     isFavorited: {
         type: Boolean,
         default: false,
+    },
+    breadcrumbs: {
+        type: Array,
+        default: () => [],
     }
 });
 
@@ -29,7 +33,7 @@ let updateInterval = null;
 const playVideo = () => {
     const v = video.value;
     if (!v) return;
-    
+
     v.play().catch(error => {
         console.warn("Autoplay was prevented by browser:", error);
     });
@@ -95,12 +99,30 @@ onBeforeUnmount(() => {
 
         <div class="py-12">
             <div class="mx-auto max-w-7xl sm:px-6 lg:px-8">
+                <!-- Breadcrumbs -->
+                <nav class="flex mb-4 text-gray-600 bg-white p-3 rounded shadow-sm" aria-label="Breadcrumb">
+                    <ol class="inline-flex items-center space-x-1 md:space-x-3">
+                        <li class="inline-flex items-center">
+                            <Link :href="route('videos.index')" class="inline-flex items-center text-sm font-medium text-gray-700 hover:text-blue-600">
+                                <svg aria-hidden="true" class="w-4 h-4 mr-2 fill-current" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"></path></svg>
+                                Home
+                            </Link>
+                        </li>
+                        <li v-for="crumb in breadcrumbs" :key="crumb.path">
+                            <div class="flex items-center">
+                                <svg aria-hidden="true" class="w-6 h-6 text-gray-400 fill-current" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg>
+                                <Link :href="route('videos.index', { path: crumb.path })" class="ml-1 text-sm font-medium text-gray-700 hover:text-blue-600 md:ml-2">{{ crumb.name }}</Link>
+                            </div>
+                        </li>
+                    </ol>
+                </nav>
+
                 <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
                     <div class="p-6 text-gray-900">
                         <div class="mb-4">
                             <Link :href="backLink" class="text-blue-600 hover:text-blue-800">&larr; Back to Folder</Link>
                         </div>
-                        
+
                         <video ref="video" controls autoplay class="w-full shadow-lg rounded">
                             <source :src="route('videos.stream', { path: path })" type="video/mp4">
                             Your browser does not support the video tag.
