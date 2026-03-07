@@ -6,6 +6,7 @@ use App\Enums\Role;
 use App\Models\Video as VideoModel;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\File;
+use Illuminate\Http\Request;
 use Inertia\Inertia;
 
 class HlsCacheController extends Controller
@@ -61,11 +62,30 @@ class HlsCacheController extends Controller
                 $size = $this->getDirectorySize($dir);
                 $totalSize += $size;
 
+                $pidFile = $dir . '/ffmpeg.pid';
+                $isRunning = false;
+                if (File::exists($pidFile)) {
+                    $pid = trim(File::get($pidFile));
+                    if (is_numeric($pid)) {
+                        $isRunning = $this->isProcessRunning($pid);
+                    }
+                }
+
+                $hasIndex = File::exists($dir . '/index.m3u8');
+                
+                $status = 'failed';
+                if ($isRunning) {
+                    $status = 'transcoding';
+                } elseif ($hasIndex) {
+                    $status = 'completed';
+                }
+
                 $caches[] = [
                     'hash' => $hash,
                     'path' => $knownVideos[$hash] ?? 'Unknown (Source path not in database)',
                     'size' => $this->formatBytes($size),
                     'size_bytes' => $size,
+                    'status' => $status,
                 ];
             }
         }
@@ -89,12 +109,29 @@ class HlsCacheController extends Controller
         ]);
     }
 
+    private function isProcessRunning($pid)
+    {
+        $output = shell_exec("ps -p $pid");
+        return strpos($output, (string)$pid) !== false;
+    }
+
     public function destroy($hash)
     {
         $this->authorizeAdmin();
-        $dir = $this->hlsCachePath . '/' . $hash;
-        if (File::exists($dir)) File::deleteDirectory($dir);
-        return redirect()->back();
+        $this->stopAndRemoveCache($hash);
+        return redirect()->route('admin.hls.index');
+    }
+
+    public function destroyMultiple(Request $request)
+    {
+        $this->authorizeAdmin();
+        $hashes = $request->input('hashes', []);
+        
+        foreach ($hashes as $hash) {
+            $this->stopAndRemoveCache($hash);
+        }
+        
+        return redirect()->route('admin.hls.index');
     }
 
     public function destroyAll()
@@ -103,9 +140,26 @@ class HlsCacheController extends Controller
         if (File::exists($this->hlsCachePath)) {
             $directories = File::directories($this->hlsCachePath);
             foreach ($directories as $dir) {
-                File::deleteDirectory($dir);
+                $hash = basename($dir);
+                $this->stopAndRemoveCache($hash);
             }
         }
-        return redirect()->back();
+        return redirect()->route('admin.hls.index');
+    }
+
+    private function stopAndRemoveCache($hash)
+    {
+        $cacheDir = $this->hlsCachePath . '/' . $hash;
+        if (File::exists($cacheDir)) {
+            $pidFile = $cacheDir . '/ffmpeg.pid';
+            if (File::exists($pidFile)) {
+                $pid = trim(File::get($pidFile));
+                if (is_numeric($pid)) {
+                    // Kill the process
+                    shell_exec("kill -9 $pid > /dev/null 2>&1");
+                }
+            }
+            File::deleteDirectory($cacheDir);
+        }
     }
 }

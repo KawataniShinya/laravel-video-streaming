@@ -366,7 +366,7 @@ class VideoController extends Controller
                    "-hls_segment_filename " . escapeshellarg($outputDir . "/s%v_%d.ts") . " " .
                    "-var_stream_map \"" . trim($streamMap) . "\" " .
                    $vobFlags . " " .
-                   escapeshellarg($outputDir . "/p%v.m3u8") . " > " . escapeshellarg($ffmpegLogPath) . " 2>&1 &";
+                   escapeshellarg($outputDir . "/p%v.m3u8") . " > " . escapeshellarg($ffmpegLogPath) . " 2>&1 & echo $! > " . escapeshellarg($outputDir . '/ffmpeg.pid');
 
             Process::run($cmd);
         }
@@ -390,15 +390,30 @@ class VideoController extends Controller
         if (Auth::user()->role !== Role::Admin->value) abort(403);
 
         $path = $request->input('path');
-        if (!$path) return redirect()->back();
+        if (!$path) return redirect()->route('videos.index');
 
         $video = VideoModel::where('path', rawurldecode($path))->first();
         if ($video) {
-            $cacheDir = $this->hlsCachePath . '/' . $video->hash;
-            if (File::exists($cacheDir)) File::deleteDirectory($cacheDir);
+            $this->stopAndRemoveCache($video->hash);
         }
 
-        return redirect()->back();
+        return redirect()->route('videos.index', ['path' => $path ? dirname(rawurldecode($path)) : null]);
+    }
+
+    private function stopAndRemoveCache($hash)
+    {
+        $cacheDir = $this->hlsCachePath . '/' . $hash;
+        if (File::exists($cacheDir)) {
+            $pidFile = $cacheDir . '/ffmpeg.pid';
+            if (File::exists($pidFile)) {
+                $pid = trim(File::get($pidFile));
+                if (is_numeric($pid)) {
+                    // Kill the process and its children
+                    shell_exec("kill -9 $pid > /dev/null 2>&1");
+                }
+            }
+            File::deleteDirectory($cacheDir);
+        }
     }
 
     public function toggleWatchStatus(Request $request)

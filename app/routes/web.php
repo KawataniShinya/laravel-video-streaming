@@ -47,6 +47,7 @@ Route::middleware('auth')->group(function () {
     // HLS Cache Management
     Route::get('/admin/hls-cache', [HlsCacheController::class, 'index'])->name('admin.hls.index');
     Route::delete('/admin/hls-cache/all', [HlsCacheController::class, 'destroyAll'])->name('admin.hls.destroy_all');
+    Route::post('/admin/hls-cache/multiple', [HlsCacheController::class, 'destroyMultiple'])->name('admin.hls.destroy_multiple');
     Route::delete('/admin/hls-cache/{hash}', [HlsCacheController::class, 'destroy'])->name('admin.hls.destroy');
     Route::get('/admin/users/{user}/allowed-paths', [AdminUserController::class, 'editAllowedPaths'])->name('admin.users.allowed-paths.edit');
     Route::post('/admin/users/{user}/allowed-paths', [AdminUserController::class, 'updateAllowedPaths'])->name('admin.users.allowed-paths.update');
