@@ -27,12 +27,18 @@ class HlsCacheController extends Controller
 
     private function getDirectorySize($path)
     {
-        $size = 0;
         if (!File::exists($path)) return 0;
-        foreach (File::allFiles($path) as $file) {
-            $size += $file->getSize();
+        
+        // Use the system 'du' command for much faster directory size calculation
+        // -s: display only a total for each argument
+        // -b: display size in bytes
+        $output = shell_exec("du -sb " . escapeshellarg($path));
+        if ($output) {
+            $parts = explode("\t", $output);
+            return (int) $parts[0];
         }
-        return $size;
+        
+        return 0;
     }
 
     private function formatBytes($bytes, $precision = 2)
