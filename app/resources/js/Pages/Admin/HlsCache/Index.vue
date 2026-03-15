@@ -23,17 +23,47 @@ const props = defineProps({
 });
 
 const selectedHashes = ref([]);
+const sortKey = ref('path');
+const sortOrder = ref('asc');
+
+const sortBy = (key) => {
+    if (sortKey.value === key) {
+        sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc';
+    } else {
+        sortKey.value = key;
+        sortOrder.value = 'asc';
+    }
+};
+
+const sortedCaches = computed(() => {
+    return [...props.caches].sort((a, b) => {
+        let modifier = sortOrder.value === 'asc' ? 1 : -1;
+        
+        let valA = a[sortKey.value];
+        let valB = b[sortKey.value];
+        
+        // Use size_bytes for sorting by size
+        if (sortKey.value === 'size') {
+            valA = a.size_bytes;
+            valB = b.size_bytes;
+        }
+
+        if (valA < valB) return -1 * modifier;
+        if (valA > valB) return 1 * modifier;
+        return 0;
+    });
+});
 
 const toggleAll = (e) => {
     if (e.target.checked) {
-        selectedHashes.value = props.caches.map(c => c.hash);
+        selectedHashes.value = sortedCaches.value.map(c => c.hash);
     } else {
         selectedHashes.value = [];
     }
 };
 
 const isAllSelected = computed(() => {
-    return props.caches.length > 0 && selectedHashes.value.length === props.caches.length;
+    return sortedCaches.value.length > 0 && selectedHashes.value.length === sortedCaches.value.length;
 });
 
 const form = useForm({
@@ -129,14 +159,41 @@ const deleteAllCaches = () => {
                                                 class="rounded border-gray-300 text-blue-600 shadow-sm focus:ring-blue-500"
                                             >
                                         </th>
-                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Path (Best Effort)</th>
-                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Size</th>
+                                        <th 
+                                            scope="col" 
+                                            class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition"
+                                            @click="sortBy('path')"
+                                        >
+                                            <div class="flex items-center gap-1">
+                                                Path (Best Effort)
+                                                <span v-if="sortKey === 'path'">{{ sortOrder === 'asc' ? '↑' : '↓' }}</span>
+                                            </div>
+                                        </th>
+                                        <th 
+                                            scope="col" 
+                                            class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition"
+                                            @click="sortBy('status')"
+                                        >
+                                            <div class="flex items-center gap-1">
+                                                Status
+                                                <span v-if="sortKey === 'status'">{{ sortOrder === 'asc' ? '↑' : '↓' }}</span>
+                                            </div>
+                                        </th>
+                                        <th 
+                                            scope="col" 
+                                            class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition"
+                                            @click="sortBy('size')"
+                                        >
+                                            <div class="flex items-center gap-1">
+                                                Size
+                                                <span v-if="sortKey === 'size'">{{ sortOrder === 'asc' ? '↑' : '↓' }}</span>
+                                            </div>
+                                        </th>
                                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody class="bg-white divide-y divide-gray-200">
-                                    <tr v-for="cache in caches" :key="cache.hash" :class="{'bg-blue-50': selectedHashes.includes(cache.hash)}">
+                                    <tr v-for="cache in sortedCaches" :key="cache.hash" :class="{'bg-blue-50': selectedHashes.includes(cache.hash)}">
                                         <td class="px-6 py-4 whitespace-nowrap">
                                             <input 
                                                 type="checkbox" 

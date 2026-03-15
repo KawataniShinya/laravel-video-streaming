@@ -97,7 +97,7 @@ class HlsCacheController extends Controller
         }
 
         usort($caches, function ($a, $b) {
-            return $b['size_bytes'] <=> $a['size_bytes'];
+            return strcasecmp($a['path'], $b['path']);
         });
 
         $diskPath = $this->hlsCachePath;
