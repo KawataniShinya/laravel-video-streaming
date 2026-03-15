@@ -9,6 +9,8 @@ use Illuminate\Support\Facades\File;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
+use Illuminate\Support\Facades\Cache;
+
 class HlsCacheController extends Controller
 {
     private $hlsCachePath;
@@ -27,12 +29,16 @@ class HlsCacheController extends Controller
 
     private function getDirectorySize($path)
     {
-        $size = 0;
         if (!File::exists($path)) return 0;
-        foreach (File::allFiles($path) as $file) {
-            $size += $file->getSize();
+        
+        // Use the system 'du' command for much faster directory size calculation
+        $output = shell_exec("du -sb " . escapeshellarg($path));
+        if ($output) {
+            $parts = explode("\t", $output);
+            return (int) $parts[0];
         }
-        return $size;
+        
+        return 0;
     }
 
     private function formatBytes($bytes, $precision = 2)
@@ -50,7 +56,6 @@ class HlsCacheController extends Controller
         $this->authorizeAdmin();
 
         $caches = [];
-        $totalSize = 0;
 
         // Map hashes using the videos master table
         $knownVideos = VideoModel::all()->pluck('path', 'hash')->toArray();
@@ -59,8 +64,6 @@ class HlsCacheController extends Controller
             $directories = File::directories($this->hlsCachePath);
             foreach ($directories as $dir) {
                 $hash = basename($dir);
-                $size = $this->getDirectorySize($dir);
-                $totalSize += $size;
 
                 $pidFile = $dir . '/ffmpeg.pid';
                 $isRunning = false;
@@ -83,15 +86,16 @@ class HlsCacheController extends Controller
                 $caches[] = [
                     'hash' => $hash,
                     'path' => $knownVideos[$hash] ?? 'Unknown (Source path not in database)',
-                    'size' => $this->formatBytes($size),
-                    'size_bytes' => $size,
+                    'size' => null, // To be fetched asynchronously
+                    'size_bytes' => 0,
                     'status' => $status,
                 ];
             }
         }
 
+        // Default sort by path
         usort($caches, function ($a, $b) {
-            return $b['size_bytes'] <=> $a['size_bytes'];
+            return strcasecmp($a['path'], $b['path']);
         });
 
         $diskPath = $this->hlsCachePath;
@@ -103,10 +107,33 @@ class HlsCacheController extends Controller
 
         return Inertia::render('Admin/HlsCache/Index', [
             'caches' => $caches,
-            'totalSize' => $this->formatBytes($totalSize),
             'freeDiskSpace' => $this->formatBytes($freeSpace),
             'totalDiskSpace' => $this->formatBytes($totalDiskSpace),
         ]);
+    }
+
+    public function getSize($hash)
+    {
+        $this->authorizeAdmin();
+        
+        $lock = Cache::lock('hls_size_calc_' . Auth::id(), 10);
+        
+        if (!$lock->get()) {
+            return response()->json(['message' => 'Another request is in progress'], 429);
+        }
+
+        try {
+            $dir = $this->hlsCachePath . '/' . $hash;
+            $size = $this->getDirectorySize($dir);
+            
+            return response()->json([
+                'hash' => $hash,
+                'size_bytes' => $size,
+                'size_formatted' => $this->formatBytes($size)
+            ]);
+        } finally {
+            $lock->release();
+        }
     }
 
     private function isProcessRunning($pid)
