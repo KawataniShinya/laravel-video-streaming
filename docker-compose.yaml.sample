@@ -16,6 +16,25 @@ services:
     networks:
       sample-network:
 
+  scheduler:
+    build:
+      context: ./docker/app
+      dockerfile: Dockerfile
+    container_name: scheduler
+    environment:
+      TZ: "Asia/Tokyo"
+    volumes:
+      - ./app:/var/www/app
+#      - ./videos:/videos # videosディレクトリ配下に直接動画ファイルを配置する場合
+      - ~/Movies:/videos # Moviesディレクトリ配下に配置されている動画ファイルを参照する場合
+    working_dir: /var/www/app
+    command: php artisan schedule:work
+    depends_on:
+      - db
+      - redis
+    networks:
+      sample-network:
+
   node:
     build:
       context: ./docker/node
