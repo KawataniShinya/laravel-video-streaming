@@ -326,9 +326,19 @@ class VideoController extends Controller
     {
         $outputDir = $this->hlsCachePath . '/' . $hash;
         $playlist = $outputDir . '/index.m3u8';
+        $pidFile = $outputDir . '/ffmpeg.pid';
 
         if (!File::exists($outputDir)) {
             File::makeDirectory($outputDir, 0755, true);
+        }
+
+        // Check if already transcoding
+        if (File::exists($pidFile)) {
+            $pid = trim(File::get($pidFile));
+            if (is_numeric($pid) && $this->isProcessRunning($pid)) {
+                // Already running, just return
+                return;
+            }
         }
 
         if (!File::exists($playlist)) {
@@ -365,18 +375,22 @@ class VideoController extends Controller
             $audioCount = (int) shell_exec($probeCmd);
 
             // Build stream mapping
-            $videoMaps = "-map 0:v:0 -map 0:v:0"; // Two video streams (High/Low)
+            $videoMaps = "-map 0:v:0 -map 0:v:0"; // Two video variants
             $audioMaps = "";
-            $streamMap = "";
+            $streamMap = "v:0,agroup:aud,name:High v:1,agroup:aud,name:Low ";
 
-            if ($audioCount > 0) {
-                $streamMap = "v:0,agroup:aud,name:High v:1,agroup:aud,name:Low ";
+            if ($ext === 'vob') {
+                // DVD multi-audio (up to 2 tracks)
                 for ($i = 0; $i < min($audioCount, 2); $i++) {
                     $streamMap .= "a:$i,agroup:aud,name:Track" . ($i + 1) . " ";
                     $audioMaps .= " -map 0:a:$i";
                 }
             } else {
-                $streamMap = "v:0,name:High v:1,name:Low";
+                // Other formats: limit to 1 audio track for maximum compatibility
+                if ($audioCount > 0) {
+                    $streamMap .= "a:0,agroup:aud,name:Audio ";
+                    $audioMaps = "-map 0:a:0";
+                }
             }
 
             $ffmpegLogPath = $outputDir . '/ffmpeg.log';
@@ -385,10 +399,11 @@ class VideoController extends Controller
             $vfHigh = ($ext === 'vob') ? "yadif" : "null";
             $vfLow  = ($ext === 'vob') ? "yadif,scale=-2:360" : "scale=-2:360";
 
-            $vobFlags = ($ext === 'vob') ? "-fflags +genpts+igndts -avoid_negative_ts make_zero" : "";
+            // Common flags for stability (critical for m2ts/vob)
+            $hlsFlags = "-fflags +genpts+igndts -avoid_negative_ts make_zero";
 
             $cmd = "nohup ffmpeg -analyzeduration 100M -probesize 100M -i " . $inputArg . " " .
-                   $videoMaps . $audioMaps . " " .
+                   $videoMaps . " " . $audioMaps . " " .
                    // Video 0: High Quality (Original)
                    "-c:v:0 libx264 -preset ultrafast -pix_fmt yuv420p -filter:v:0 " . $vfHigh . " " .
                    // Video 1: Low Quality (360p)
@@ -399,11 +414,17 @@ class VideoController extends Controller
                    "-master_pl_name index.m3u8 " .
                    "-hls_segment_filename " . escapeshellarg($outputDir . "/s%v_%d.ts") . " " .
                    "-var_stream_map \"" . trim($streamMap) . "\" " .
-                   $vobFlags . " " .
-                   escapeshellarg($outputDir . "/p%v.m3u8") . " > " . escapeshellarg($ffmpegLogPath) . " 2>&1 & echo $! > " . escapeshellarg($outputDir . '/ffmpeg.pid');
+                   $hlsFlags . " " .
+                   escapeshellarg($outputDir . "/p%v.m3u8") . " > " . escapeshellarg($ffmpegLogPath) . " 2>&1 & echo $! > " . escapeshellarg($pidFile);
 
             Process::run($cmd);
         }
+    }
+
+    private function isProcessRunning($pid)
+    {
+        $output = shell_exec("ps -p $pid");
+        return strpos($output, (string)$pid) !== false;
     }
 
     public function serveHls($hash, $file)
