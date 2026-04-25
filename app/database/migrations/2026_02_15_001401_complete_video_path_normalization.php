@@ -9,7 +9,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        DB::statement('SET FOREIGN_KEY_CHECKS=0;');
+        Schema::disableForeignKeyConstraints();
 
         // 1. Ensure videos table exists
         if (!Schema::hasTable('videos')) {
@@ -93,13 +93,13 @@ return new class extends Migration
             }
         }
 
-        DB::statement('SET FOREIGN_KEY_CHECKS=1;');
+        Schema::enableForeignKeyConstraints();
     }
 
     public function down(): void
     {
         // 戻す際も同様に DROP & RECREATE が安全
-        DB::statement('SET FOREIGN_KEY_CHECKS=0;');
+        Schema::disableForeignKeyConstraints();
         $videos = DB::table('videos')->pluck('path', 'id');
         $normViews = DB::table('video_views')->get();
         $normFavs = DB::table('favorites')->get();
@@ -149,6 +149,6 @@ return new class extends Migration
                 ]);
             }
         }
-        DB::statement('SET FOREIGN_KEY_CHECKS=1;');
+        Schema::enableForeignKeyConstraints();
     }
 };

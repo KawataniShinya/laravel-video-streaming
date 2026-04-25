@@ -15,12 +15,13 @@ use Inertia\Inertia;
 
 class VideoController extends Controller
 {
-    private string $videoRoot = '/videos';
+    private string $videoRoot;
     private string $hlsCachePath;
 
     public function __construct()
     {
-        $this->hlsCachePath = storage_path('hls');
+        $this->videoRoot = config('video.root', '/videos');
+        $this->hlsCachePath = config('video.hls_cache_path', storage_path('hls'));
     }
 
     private function formatBytes($bytes, $precision = 2)
@@ -423,7 +424,7 @@ class VideoController extends Controller
 
     private function isProcessRunning($pid)
     {
-        $output = shell_exec("ps -p $pid");
+        $output = shell_exec("ps -p $pid 2>/dev/null");
         return strpos($output, (string)$pid) !== false;
     }
 
