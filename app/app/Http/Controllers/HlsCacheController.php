@@ -17,7 +17,7 @@ class HlsCacheController extends Controller
 
     public function __construct()
     {
-        $this->hlsCachePath = storage_path('hls');
+        $this->hlsCachePath = config('video.hls_cache_path', storage_path('hls'));
     }
 
     private function authorizeAdmin()
@@ -30,15 +30,18 @@ class HlsCacheController extends Controller
     private function getDirectorySize($path)
     {
         if (!File::exists($path)) return 0;
-        
-        // Use the system 'du' command for much faster directory size calculation
-        $output = shell_exec("du -sb " . escapeshellarg($path));
+
+        $output = shell_exec("du -sk " . escapeshellarg($path) . " 2>/dev/null");
         if ($output) {
-            $parts = explode("\t", $output);
-            return (int) $parts[0];
+            $parts = preg_split('/\s+/', trim($output));
+            if (isset($parts[0]) && is_numeric($parts[0])) {
+                return (int) $parts[0] * 1024;
+            }
         }
-        
-        return 0;
+
+        return collect(File::allFiles($path))->sum(function ($file) {
+            return $file->getSize();
+        });
     }
 
     private function formatBytes($bytes, $precision = 2)
@@ -138,7 +141,7 @@ class HlsCacheController extends Controller
 
     private function isProcessRunning($pid)
     {
-        $output = shell_exec("ps -p $pid");
+        $output = shell_exec("ps -p $pid 2>/dev/null");
         return strpos($output, (string)$pid) !== false;
     }
 

@@ -16,7 +16,7 @@ class FavoriteController extends Controller
     {
         $favorites = Favorite::with('video')->where('user_id', Auth::id())->get();
         $items = [];
-        $hlsCachePath = storage_path('hls');
+        $hlsCachePath = config('video.hls_cache_path', storage_path('hls'));
 
         $watchedVideoIds = VideoView::where('user_id', Auth::id())
             ->pluck('video_id')

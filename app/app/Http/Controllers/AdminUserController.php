@@ -19,7 +19,12 @@ use Illuminate\Support\Facades\DB;
 
 class AdminUserController extends Controller
 {
-    private string $videoRoot = '/videos';
+    private string $videoRoot;
+
+    public function __construct()
+    {
+        $this->videoRoot = config('video.root', '/videos');
+    }
 
     /**
      * Ensure the user is an admin.
