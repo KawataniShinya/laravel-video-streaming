@@ -21,6 +21,10 @@ const props = defineProps({
         type: Boolean,
         default: false,
     },
+    isCached: {
+        type: Boolean,
+        default: false,
+    },
     breadcrumbs: {
         type: Array,
         default: () => [],
@@ -90,9 +94,14 @@ onBeforeUnmount(() => {
     <AuthenticatedLayout>
         <template #header>
             <div class="flex justify-between items-center">
-                <h2 class="text-xl font-semibold leading-tight text-gray-800">
-                    Watching {{ filename }}
-                </h2>
+                <div class="flex items-center gap-4">
+                    <h2 class="text-xl font-semibold leading-tight text-gray-800">
+                        Watching {{ filename }}
+                    </h2>
+                    <span v-if="isCached" class="px-2 py-0.5 bg-green-100 text-green-800 text-[10px] font-bold uppercase tracking-wider rounded border border-green-200">
+                        Cached
+                    </span>
+                </div>
                 <FavoriteToggle :path="path" type="file" :is-favorited="isFavorited" />
             </div>
         </template>

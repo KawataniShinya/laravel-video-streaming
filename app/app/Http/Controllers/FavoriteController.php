@@ -18,10 +18,9 @@ class FavoriteController extends Controller
         $items = [];
         $hlsCachePath = config('video.hls_cache_path', storage_path('hls'));
 
-        $watchedVideoIds = VideoView::where('user_id', Auth::id())
-            ->pluck('video_id')
-            ->flip()
-            ->toArray();
+        $videoViews = VideoView::where('user_id', Auth::id())
+            ->get()
+            ->keyBy('video_id');
 
         foreach ($favorites as $fav) {
             $video = $fav->video;
@@ -32,9 +31,24 @@ class FavoriteController extends Controller
             
             $isCached = false;
             if ($video->type === 'file' && in_array(strtolower($ext), ['m2ts', 'avi', 'flv', 'vob'])) {
-                $playlist = $hlsCachePath . '/' . $video->hash . '/index.m3u8';
-                $isCached = File::exists($playlist);
+                $outputDir = $hlsCachePath . '/' . $video->hash;
+                $playlist = $outputDir . '/index.m3u8';
+                $pidFile = $outputDir . '/ffmpeg.pid';
+                
+                $hasPlaylist = File::exists($playlist);
+                $isRunning = false;
+                
+                if (File::exists($pidFile)) {
+                    $pid = trim(File::get($pidFile));
+                    if (is_numeric($pid)) {
+                        $isRunning = $this->isProcessRunning($pid);
+                    }
+                }
+
+                $isCached = $hasPlaylist && !$isRunning;
             }
+
+            $view = $videoViews->get($video->id);
 
             $items[] = [
                 'id' => $video->id,
@@ -43,7 +57,8 @@ class FavoriteController extends Controller
                 'path' => $video->path,
                 'ext' => strtolower($ext),
                 'is_cached' => $isCached,
-                'is_watched' => isset($watchedVideoIds[$video->id]),
+                'is_watched' => (bool)$view,
+                'last_position' => $view ? $view->last_position : 0,
                 'is_favorited' => true,
             ];
         }
@@ -83,5 +98,11 @@ class FavoriteController extends Controller
         }
 
         return redirect()->back();
+    }
+
+    private function isProcessRunning($pid)
+    {
+        $output = shell_exec("ps -p $pid 2>/dev/null");
+        return strpos($output, (string)$pid) !== false;
     }
 }
