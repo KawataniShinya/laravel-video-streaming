@@ -33,11 +33,39 @@ const showingNavigationDropdown = ref(false);
                                 class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex"
                             >
                                 <NavLink
-                                    :href="route('dashboard')"
-                                    :active="route().current('dashboard')"
+                                    :href="route('videos.index')"
+                                    :active="route().current('videos.index')"
                                 >
-                                    Dashboard
+                                    Library
                                 </NavLink>
+                                <NavLink
+                                    :href="route('favorites.index')"
+                                    :active="route().current('favorites.index')"
+                                >
+                                    Favorites
+                                </NavLink>
+                                <NavLink
+                                    :href="route('videos.history')"
+                                    :active="route().current('videos.history')"
+                                >
+                                    History
+                                </NavLink>
+
+                                <!-- Admin Only Tabs -->
+                                <div v-if="$page.props.auth.user.role === 'admin'" class="flex space-x-8 border-l border-gray-200 ml-4 ps-8">
+                                    <NavLink
+                                        :href="route('admin.users.index')"
+                                        :active="route().current('admin.users.*')"
+                                    >
+                                        Users
+                                    </NavLink>
+                                    <NavLink
+                                        :href="route('admin.hls.index')"
+                                        :active="route().current('admin.hls.index')"
+                                    >
+                                        HLS Cache
+                                    </NavLink>
+                                </div>
                             </div>
                         </div>
 
@@ -140,11 +168,46 @@ const showingNavigationDropdown = ref(false);
                 >
                     <div class="space-y-1 pb-3 pt-2">
                         <ResponsiveNavLink
-                            :href="route('dashboard')"
-                            :active="route().current('dashboard')"
+                            :href="route('videos.index')"
+                            :active="route().current('videos.index')"
                         >
-                            Dashboard
+                            Library
                         </ResponsiveNavLink>
+                        <ResponsiveNavLink
+                            :href="route('favorites.index')"
+                            :active="route().current('favorites.index')"
+                        >
+                            Favorites
+                        </ResponsiveNavLink>
+                        <ResponsiveNavLink
+                            :href="route('videos.history')"
+                            :active="route().current('videos.history')"
+                        >
+                            History
+                        </ResponsiveNavLink>
+                    </div>
+
+                    <!-- Responsive Admin Options -->
+                    <div v-if="$page.props.auth.user.role === 'admin'" class="border-t border-gray-200 pb-1 pt-4">
+                        <div class="px-4 mb-2">
+                            <div class="text-xs font-semibold uppercase tracking-wider text-gray-400">
+                                Administration
+                            </div>
+                        </div>
+                        <div class="space-y-1">
+                            <ResponsiveNavLink
+                                :href="route('admin.users.index')"
+                                :active="route().current('admin.users.*')"
+                            >
+                                User Management
+                            </ResponsiveNavLink>
+                            <ResponsiveNavLink
+                                :href="route('admin.hls.index')"
+                                :active="route().current('admin.hls.index')"
+                            >
+                                HLS Cache
+                            </ResponsiveNavLink>
+                        </div>
                     </div>
 
                     <!-- Responsive Settings Options -->
