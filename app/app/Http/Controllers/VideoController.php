@@ -266,11 +266,32 @@ class VideoController extends Controller
         $ext = strtolower(pathinfo($fullPath, PATHINFO_EXTENSION));
         $filename = basename($fullPath);
 
+        $isCached = false;
+        if (in_array($ext, ['m2ts', 'avi', 'flv', 'vob'])) {
+            $outputDir = $this->hlsCachePath . '/' . $video->hash;
+            $playlist = $outputDir . '/index.m3u8';
+            $pidFile = $outputDir . '/ffmpeg.pid';
+            
+            $hasPlaylist = File::exists($playlist);
+            $isRunning = false;
+            
+            if (File::exists($pidFile)) {
+                $pid = trim(File::get($pidFile));
+                if (is_numeric($pid)) {
+                    $isRunning = $this->isProcessRunning($pid);
+                }
+            }
+
+            // It's only truly "cached" (completed) if the playlist exists AND ffmpeg is no longer running
+            $isCached = $hasPlaylist && !$isRunning;
+        }
+
         $props = [
             'filename' => $filename,
             'path' => $path,
             'lastPosition' => $view->last_position ?? 0,
             'isFavorited' => Favorite::where('user_id', Auth::id())->where('video_id', $video->id)->exists(),
+            'isCached' => $isCached,
             'breadcrumbs' => $this->getBreadcrumbs($path),
         ];
 
