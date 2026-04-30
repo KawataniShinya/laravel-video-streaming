@@ -414,7 +414,9 @@ class VideoController extends Controller
             $hlsFlags = "-fflags +genpts+igndts -avoid_negative_ts make_zero";
 
             $successSentinel = $outputDir . '/transcode.success';
-            $cmd = "nohup sh -c 'ffmpeg -analyzeduration 100M -probesize 100M -i " . $inputArg . " " .
+            
+            // Build the inner command that will be executed by sh -c
+            $innerCmd = "ffmpeg -analyzeduration 100M -probesize 100M -i " . escapeshellarg($inputPath) . " " .
                    $videoMaps . " " . $audioMaps . " " .
                    // Video 0: High Quality (Original)
                    "-c:v:0 libx264 -preset ultrafast -pix_fmt yuv420p -filter:v:0 " . $vfHigh . " " .
@@ -427,7 +429,10 @@ class VideoController extends Controller
                    "-hls_segment_filename " . escapeshellarg($outputDir . "/s%v_%d.ts") . " " .
                    "-var_stream_map \"" . trim($streamMap) . "\" " .
                    $hlsFlags . " " .
-                   escapeshellarg($outputDir . "/p%v.m3u8") . " && touch " . escapeshellarg($successSentinel) . "' > " . escapeshellarg($ffmpegLogPath) . " 2>&1 & echo $! > " . escapeshellarg($pidFile);
+                   escapeshellarg($outputDir . "/p%v.m3u8") . " && touch " . escapeshellarg($successSentinel);
+
+            // Wrap the whole thing in nohup and background it
+            $cmd = "nohup sh -c " . escapeshellarg($innerCmd) . " > " . escapeshellarg($ffmpegLogPath) . " 2>&1 & echo $! > " . escapeshellarg($pidFile);
 
             Process::run($cmd);
         }
