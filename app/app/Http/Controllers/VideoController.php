@@ -269,21 +269,10 @@ class VideoController extends Controller
         $isCached = false;
         if (in_array($ext, ['m2ts', 'avi', 'flv', 'vob'])) {
             $outputDir = $this->hlsCachePath . '/' . $video->hash;
-            $playlist = $outputDir . '/index.m3u8';
-            $pidFile = $outputDir . '/ffmpeg.pid';
+            $successSentinel = $outputDir . '/transcode.success';
             
-            $hasPlaylist = File::exists($playlist);
-            $isRunning = false;
-            
-            if (File::exists($pidFile)) {
-                $pid = trim(File::get($pidFile));
-                if (is_numeric($pid)) {
-                    $isRunning = $this->isProcessRunning($pid);
-                }
-            }
-
-            // It's only truly "cached" (completed) if the playlist exists AND ffmpeg is no longer running
-            $isCached = $hasPlaylist && !$isRunning;
+            // Truly "cached" only if the transcode.success sentinel exists
+            $isCached = File::exists($successSentinel);
         }
 
         $props = [
@@ -424,7 +413,8 @@ class VideoController extends Controller
             // Common flags for stability (critical for m2ts/vob)
             $hlsFlags = "-fflags +genpts+igndts -avoid_negative_ts make_zero";
 
-            $cmd = "nohup ffmpeg -analyzeduration 100M -probesize 100M -i " . $inputArg . " " .
+            $successSentinel = $outputDir . '/transcode.success';
+            $cmd = "nohup sh -c 'ffmpeg -analyzeduration 100M -probesize 100M -i " . $inputArg . " " .
                    $videoMaps . " " . $audioMaps . " " .
                    // Video 0: High Quality (Original)
                    "-c:v:0 libx264 -preset ultrafast -pix_fmt yuv420p -filter:v:0 " . $vfHigh . " " .
@@ -437,7 +427,7 @@ class VideoController extends Controller
                    "-hls_segment_filename " . escapeshellarg($outputDir . "/s%v_%d.ts") . " " .
                    "-var_stream_map \"" . trim($streamMap) . "\" " .
                    $hlsFlags . " " .
-                   escapeshellarg($outputDir . "/p%v.m3u8") . " > " . escapeshellarg($ffmpegLogPath) . " 2>&1 & echo $! > " . escapeshellarg($pidFile);
+                   escapeshellarg($outputDir . "/p%v.m3u8") . " && touch " . escapeshellarg($successSentinel) . "' > " . escapeshellarg($ffmpegLogPath) . " 2>&1 & echo $! > " . escapeshellarg($pidFile);
 
             Process::run($cmd);
         }

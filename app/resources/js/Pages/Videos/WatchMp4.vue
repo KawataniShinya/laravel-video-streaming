@@ -21,10 +21,6 @@ const props = defineProps({
         type: Boolean,
         default: false,
     },
-    isCached: {
-        type: Boolean,
-        default: false,
-    },
     breadcrumbs: {
         type: Array,
         default: () => [],
@@ -98,8 +94,8 @@ onBeforeUnmount(() => {
                     <h2 class="text-xl font-semibold leading-tight text-gray-800">
                         Watching {{ filename }}
                     </h2>
-                    <span v-if="isCached" class="px-2 py-0.5 bg-green-100 text-green-800 text-[10px] font-bold uppercase tracking-wider rounded border border-green-200">
-                        Cached
+                    <span class="px-2 py-0.5 bg-blue-100 text-blue-800 text-[10px] font-bold uppercase tracking-wider rounded border border-blue-200">
+                        Direct Play
                     </span>
                 </div>
                 <FavoriteToggle :path="path" type="file" :is-favorited="isFavorited" />

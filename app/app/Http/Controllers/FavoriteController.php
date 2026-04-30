@@ -32,20 +32,8 @@ class FavoriteController extends Controller
             $isCached = false;
             if ($video->type === 'file' && in_array(strtolower($ext), ['m2ts', 'avi', 'flv', 'vob'])) {
                 $outputDir = $hlsCachePath . '/' . $video->hash;
-                $playlist = $outputDir . '/index.m3u8';
-                $pidFile = $outputDir . '/ffmpeg.pid';
-                
-                $hasPlaylist = File::exists($playlist);
-                $isRunning = false;
-                
-                if (File::exists($pidFile)) {
-                    $pid = trim(File::get($pidFile));
-                    if (is_numeric($pid)) {
-                        $isRunning = $this->isProcessRunning($pid);
-                    }
-                }
-
-                $isCached = $hasPlaylist && !$isRunning;
+                $successSentinel = $outputDir . '/transcode.success';
+                $isCached = File::exists($successSentinel);
             }
 
             $view = $videoViews->get($video->id);
