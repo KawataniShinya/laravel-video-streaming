@@ -138,8 +138,8 @@ class VideoController extends Controller
 
                 $isCached = false;
                 if (in_array($ext, ['m2ts', 'avi', 'flv', 'vob'])) {
-                    $playlist = $this->hlsCachePath . '/' . $video->hash . '/index.m3u8';
-                    $isCached = File::exists($playlist);
+                    $successSentinel = $this->hlsCachePath . '/' . $video->hash . '/transcode.success';
+                    $isCached = File::exists($successSentinel);
                 }
 
                 $items[] = [
@@ -266,11 +266,21 @@ class VideoController extends Controller
         $ext = strtolower(pathinfo($fullPath, PATHINFO_EXTENSION));
         $filename = basename($fullPath);
 
+        $isCached = false;
+        if (in_array($ext, ['m2ts', 'avi', 'flv', 'vob'])) {
+            $outputDir = $this->hlsCachePath . '/' . $video->hash;
+            $successSentinel = $outputDir . '/transcode.success';
+            
+            // Truly "cached" only if the transcode.success sentinel exists
+            $isCached = File::exists($successSentinel);
+        }
+
         $props = [
             'filename' => $filename,
             'path' => $path,
             'lastPosition' => $view->last_position ?? 0,
             'isFavorited' => Favorite::where('user_id', Auth::id())->where('video_id', $video->id)->exists(),
+            'isCached' => $isCached,
             'breadcrumbs' => $this->getBreadcrumbs($path),
         ];
 
@@ -342,7 +352,9 @@ class VideoController extends Controller
             }
         }
 
-        if (!File::exists($playlist)) {
+        $successSentinel = $outputDir . '/transcode.success';
+
+        if (!File::exists($successSentinel)) {
             $ext = strtolower(pathinfo($inputPath, PATHINFO_EXTENSION));
             $inputArg = escapeshellarg($inputPath);
 
@@ -403,7 +415,10 @@ class VideoController extends Controller
             // Common flags for stability (critical for m2ts/vob)
             $hlsFlags = "-fflags +genpts+igndts -avoid_negative_ts make_zero";
 
-            $cmd = "nohup ffmpeg -analyzeduration 100M -probesize 100M -i " . $inputArg . " " .
+            $successSentinel = $outputDir . '/transcode.success';
+            
+            // Build the inner command that will be executed by sh -c
+            $innerCmd = "ffmpeg -analyzeduration 100M -probesize 100M -i " . escapeshellarg($inputPath) . " " .
                    $videoMaps . " " . $audioMaps . " " .
                    // Video 0: High Quality (Original)
                    "-c:v:0 libx264 -preset ultrafast -pix_fmt yuv420p -filter:v:0 " . $vfHigh . " " .
@@ -416,7 +431,10 @@ class VideoController extends Controller
                    "-hls_segment_filename " . escapeshellarg($outputDir . "/s%v_%d.ts") . " " .
                    "-var_stream_map \"" . trim($streamMap) . "\" " .
                    $hlsFlags . " " .
-                   escapeshellarg($outputDir . "/p%v.m3u8") . " > " . escapeshellarg($ffmpegLogPath) . " 2>&1 & echo $! > " . escapeshellarg($pidFile);
+                   escapeshellarg($outputDir . "/p%v.m3u8") . " && touch " . escapeshellarg($successSentinel);
+
+            // Wrap the whole thing in nohup and background it
+            $cmd = "nohup sh -c " . escapeshellarg($innerCmd) . " > " . escapeshellarg($ffmpegLogPath) . " 2>&1 & echo $! > " . escapeshellarg($pidFile);
 
             Process::run($cmd);
         }

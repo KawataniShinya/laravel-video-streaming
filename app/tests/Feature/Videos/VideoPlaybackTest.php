@@ -7,12 +7,33 @@ use App\Models\User;
 use App\Models\Video;
 use App\Models\VideoView;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Process;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
 class VideoPlaybackTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_hls_conversion_command_is_correctly_escaped_for_japanese_path(): void
+    {
+        Process::fake();
+        $user = User::factory()->create();
+        $user->allowedPaths()->create(['path' => 'movies']);
+
+        // Japanese characters and spaces
+        $relativePath = 'movies/カウボーイビバップ 01.avi';
+        $fullPath = $this->makeVideoFile($relativePath, 'dummy content');
+
+        $this->actingAs($user)->get(route('videos.watch', ['path' => $relativePath], false));
+
+        // Verify that the command was executed with proper escaping
+        Process::assertRan(function ($process) use ($fullPath) {
+            // The command should use sh -c and the path should be correctly escaped within it
+            return str_contains($process->command, 'sh -c') && 
+                   str_contains($process->command, escapeshellarg($fullPath));
+        });
+    }
 
     public function test_mp4_watch_renders_player_and_creates_view_record(): void
     {

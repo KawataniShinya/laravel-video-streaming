@@ -77,12 +77,12 @@ class HlsCacheController extends Controller
                     }
                 }
 
-                $hasIndex = File::exists($dir . '/index.m3u8');
+                $hasSuccessSentinel = File::exists($dir . '/transcode.success');
                 
                 $status = 'failed';
                 if ($isRunning) {
                     $status = 'transcoding';
-                } elseif ($hasIndex) {
+                } elseif ($hasSuccessSentinel) {
                     $status = 'completed';
                 }
 
