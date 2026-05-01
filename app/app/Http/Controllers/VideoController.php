@@ -138,8 +138,8 @@ class VideoController extends Controller
 
                 $isCached = false;
                 if (in_array($ext, ['m2ts', 'avi', 'flv', 'vob'])) {
-                    $playlist = $this->hlsCachePath . '/' . $video->hash . '/index.m3u8';
-                    $isCached = File::exists($playlist);
+                    $successSentinel = $this->hlsCachePath . '/' . $video->hash . '/transcode.success';
+                    $isCached = File::exists($successSentinel);
                 }
 
                 $items[] = [
@@ -352,7 +352,9 @@ class VideoController extends Controller
             }
         }
 
-        if (!File::exists($playlist)) {
+        $successSentinel = $outputDir . '/transcode.success';
+
+        if (!File::exists($successSentinel)) {
             $ext = strtolower(pathinfo($inputPath, PATHINFO_EXTENSION));
             $inputArg = escapeshellarg($inputPath);
 
