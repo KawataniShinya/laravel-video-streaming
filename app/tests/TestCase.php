@@ -58,7 +58,7 @@ abstract class TestCase extends BaseTestCase
         return $fullPath;
     }
 
-    protected function makeHlsCache(string $hash, array $files = ['index.m3u8' => '#EXTM3U', 'transcode.success' => '']): string
+    protected function makeHlsCache(string $hash, array $files = ['index.m3u8' => '#EXTM3U']): string
     {
         $cacheDir = $this->hlsTestRoot . '/' . $hash;
         File::ensureDirectoryExists($cacheDir);
