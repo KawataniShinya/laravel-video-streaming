@@ -42,7 +42,10 @@ class AdminUserController extends Controller
             'role' => ['required', Rule::enum(Role::class)],
         ]);
 
-        $this->adminUserUseCase->create(Auth::user(), $request->only(['name', 'email', 'password', 'role']));
+        $payload = $request->only(['name', 'email', 'role']);
+        $payload['password'] = $request->filled('password') ? $request->input('password') : null;
+
+        $this->adminUserUseCase->create(Auth::user(), $payload);
 
         return redirect()->route('admin.users.index');
     }

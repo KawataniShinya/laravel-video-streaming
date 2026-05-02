@@ -264,4 +264,19 @@ class VideoPlaybackTest extends TestCase
         $response->assertRedirect(route('videos.index', ['path' => 'movies'], false));
         $this->assertDirectoryDoesNotExist($this->hlsTestRoot . '/' . $video->hash);
     }
+
+    public function test_admin_can_delete_top_level_hls_cache_and_return_to_video_root(): void
+    {
+        $admin = User::factory()->create(['role' => Role::Admin->value]);
+        $video = Video::create(['path' => 'root.avi', 'hash' => md5('root.avi'), 'type' => 'file']);
+
+        $this->makeHlsCache($video->hash, ['index.m3u8' => '#EXTM3U', 'segment.ts' => 'segment']);
+
+        $response = $this
+            ->actingAs($admin)
+            ->post(route('videos.cache.delete', absolute: false), ['path' => $video->path]);
+
+        $response->assertRedirect(route('videos.index', absolute: false));
+        $this->assertDirectoryDoesNotExist($this->hlsTestRoot . '/' . $video->hash);
+    }
 }

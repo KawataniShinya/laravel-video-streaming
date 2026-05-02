@@ -130,9 +130,12 @@ class VideoController extends Controller
             return redirect()->route('videos.index');
         }
 
-        $this->videoUseCase->deleteCache($path);
+        $decodedPath = rawurldecode($path);
+        $this->videoUseCase->deleteCache($decodedPath);
 
-        return redirect()->route('videos.index', ['path' => $path ? dirname(rawurldecode($path)) : null]);
+        return redirect()->route('videos.index', [
+            'path' => $this->pathService->parentPath($decodedPath),
+        ]);
     }
 
     public function toggleWatchStatus(Request $request)
