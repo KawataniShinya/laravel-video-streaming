@@ -418,7 +418,7 @@ class VideoController extends Controller
             $successSentinel = $outputDir . '/transcode.success';
             
             // Build the inner command that will be executed by sh -c
-            $innerCmd = "ffmpeg -analyzeduration 100M -probesize 100M -i " . escapeshellarg($inputPath) . " " .
+            $innerCmd = "ffmpeg -analyzeduration 100M -probesize 100M -i " . $inputArg . " " .
                    $videoMaps . " " . $audioMaps . " " .
                    // Video 0: High Quality (Original)
                    "-c:v:0 libx264 -preset ultrafast -pix_fmt yuv420p -filter:v:0 " . $vfHigh . " " .
