@@ -138,8 +138,12 @@ class VideoController extends Controller
 
                 $isCached = false;
                 if (in_array($ext, ['m2ts', 'avi', 'flv', 'vob'])) {
-                    $successSentinel = $this->hlsCachePath . '/' . $video->hash . '/transcode.success';
-                    $isCached = File::exists($successSentinel);
+                    $outputDir = $this->hlsCachePath . '/' . $video->hash;
+                    $playlist = $outputDir . '/index.m3u8';
+                    $lockFile = $outputDir . '/transcoding.lock';
+                    
+                    // Backward compatible: completed if playlist exists AND no lock file
+                    $isCached = File::exists($playlist) && !File::exists($lockFile);
                 }
 
                 $items[] = [
@@ -269,10 +273,11 @@ class VideoController extends Controller
         $isCached = false;
         if (in_array($ext, ['m2ts', 'avi', 'flv', 'vob'])) {
             $outputDir = $this->hlsCachePath . '/' . $video->hash;
-            $successSentinel = $outputDir . '/transcode.success';
+            $playlist = $outputDir . '/index.m3u8';
+            $lockFile = $outputDir . '/transcoding.lock';
             
-            // Truly "cached" only if the transcode.success sentinel exists
-            $isCached = File::exists($successSentinel);
+            // Backward compatible: truly "cached" if playlist exists AND no transcoding.lock
+            $isCached = File::exists($playlist) && !File::exists($lockFile);
         }
 
         $props = [
@@ -294,6 +299,7 @@ class VideoController extends Controller
 
         abort(404);
     }
+
     public function stream($path)
     {
         $user = Auth::user();
@@ -338,6 +344,7 @@ class VideoController extends Controller
         $outputDir = $this->hlsCachePath . '/' . $hash;
         $playlist = $outputDir . '/index.m3u8';
         $pidFile = $outputDir . '/ffmpeg.pid';
+        $lockFile = $outputDir . '/transcoding.lock';
 
         if (!File::exists($outputDir)) {
             File::makeDirectory($outputDir, 0755, true);
@@ -352,11 +359,12 @@ class VideoController extends Controller
             }
         }
 
-        $successSentinel = $outputDir . '/transcode.success';
-
-        if (!File::exists($successSentinel)) {
+        // If lock file exists but process is not running, it means it failed/interrupted.
+        // If playlist doesn't exist, it's not started.
+        // In both cases, we should (re)start.
+        if (!File::exists($playlist) || File::exists($lockFile)) {
             $ext = strtolower(pathinfo($inputPath, PATHINFO_EXTENSION));
-            $inputArg = escapeshellarg($inputPath);
+            $inputArg = "-i " . escapeshellarg($inputPath);
 
             if ($ext === 'vob') {
                 $directory = dirname($inputPath);
@@ -375,16 +383,16 @@ class VideoController extends Controller
                             $vobFiles[] = $file->getRealPath();
                         }
                     }
-                    sort($vobFiles);
+                    sort($vobFiles, SORT_NATURAL);
                     if (!empty($vobFiles)) {
                         $concatString = 'concat:' . implode('|', $vobFiles);
-                        $inputArg = escapeshellarg($concatString);
+                        $inputArg = "-i " . escapeshellarg($concatString);
                     }
                 }
             }
 
-            // Detect audio streams to handle single, multi, or no audio correctly
-            $probeCmd = "ffmpeg -i " . $inputArg . " 2>&1 | grep 'Stream #0' | grep 'Audio:' | wc -l";
+            // Detect audio streams
+            $probeCmd = "ffmpeg " . $inputArg . " 2>&1 | grep 'Stream #0' | grep 'Audio:' | wc -l";
             $audioCount = (int) shell_exec($probeCmd);
 
             // Build stream mapping
@@ -393,13 +401,11 @@ class VideoController extends Controller
             $streamMap = "v:0,agroup:aud,name:High v:1,agroup:aud,name:Low ";
 
             if ($ext === 'vob') {
-                // DVD multi-audio (up to 2 tracks)
                 for ($i = 0; $i < min($audioCount, 2); $i++) {
                     $streamMap .= "a:$i,agroup:aud,name:Track" . ($i + 1) . " ";
                     $audioMaps .= " -map 0:a:$i";
                 }
             } else {
-                // Other formats: limit to 1 audio track for maximum compatibility
                 if ($audioCount > 0) {
                     $streamMap .= "a:0,agroup:aud,name:Audio ";
                     $audioMaps = "-map 0:a:0";
@@ -407,33 +413,23 @@ class VideoController extends Controller
             }
 
             $ffmpegLogPath = $outputDir . '/ffmpeg.log';
-
-            // Filters: High keeps original size (with deinterlace for VOB), Low scales to 360p
             $vfHigh = ($ext === 'vob') ? "yadif" : "null";
             $vfLow  = ($ext === 'vob') ? "yadif,scale=-2:360" : "scale=-2:360";
-
-            // Common flags for stability (critical for m2ts/vob)
             $hlsFlags = "-fflags +genpts+igndts -avoid_negative_ts make_zero";
 
-            $successSentinel = $outputDir . '/transcode.success';
-            
-            // Build the inner command that will be executed by sh -c
-            $innerCmd = "ffmpeg -analyzeduration 100M -probesize 100M -i " . escapeshellarg($inputPath) . " " .
+            // Build the inner command with transcoding.lock lifecycle
+            $innerCmd = "touch " . escapeshellarg($lockFile) . " && ffmpeg -analyzeduration 100M -probesize 100M " . $inputArg . " " .
                    $videoMaps . " " . $audioMaps . " " .
-                   // Video 0: High Quality (Original)
                    "-c:v:0 libx264 -preset ultrafast -pix_fmt yuv420p -filter:v:0 " . $vfHigh . " " .
-                   // Video 1: Low Quality (360p)
                    "-c:v:1 libx264 -preset ultrafast -pix_fmt yuv420p -filter:v:1 " . $vfLow . " -b:v:1 800k -maxrate:v:1 1200k -bufsize:v:1 1600k " .
-                   // Audio settings
                    ($audioCount > 0 ? "-c:a aac -ac 2 -ar 44100 " : "") .
                    "-f hls -hls_time 10 -hls_list_size 0 -hls_playlist_type event " .
                    "-master_pl_name index.m3u8 " .
                    "-hls_segment_filename " . escapeshellarg($outputDir . "/s%v_%d.ts") . " " .
                    "-var_stream_map \"" . trim($streamMap) . "\" " .
                    $hlsFlags . " " .
-                   escapeshellarg($outputDir . "/p%v.m3u8") . " && touch " . escapeshellarg($successSentinel);
+                   escapeshellarg($outputDir . "/p%v.m3u8") . " && rm " . escapeshellarg($lockFile);
 
-            // Wrap the whole thing in nohup and background it
             $cmd = "nohup sh -c " . escapeshellarg($innerCmd) . " > " . escapeshellarg($ffmpegLogPath) . " 2>&1 & echo $! > " . escapeshellarg($pidFile);
 
             Process::run($cmd);
@@ -448,14 +444,8 @@ class VideoController extends Controller
 
     public function serveHls($hash, $file)
     {
-        // Support files in subdirectories (e.g., v0/index.m3u8)
         $path = $this->hlsCachePath . '/' . $hash . '/' . $file;
-
-        // If not found directly, check if it's a relative path request within the hash dir
-        if (!File::exists($path)) {
-            abort(404);
-        }
-
+        if (!File::exists($path)) abort(404);
         return response()->file($path);
     }
 
@@ -482,7 +472,6 @@ class VideoController extends Controller
             if (File::exists($pidFile)) {
                 $pid = trim(File::get($pidFile));
                 if (is_numeric($pid)) {
-                    // Kill the process and its children
                     shell_exec("kill -9 $pid > /dev/null 2>&1");
                 }
             }

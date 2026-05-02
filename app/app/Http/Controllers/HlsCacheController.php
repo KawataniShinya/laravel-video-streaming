@@ -77,13 +77,17 @@ class HlsCacheController extends Controller
                     }
                 }
 
-                $hasSuccessSentinel = File::exists($dir . '/transcode.success');
+                $hasPlaylist = File::exists($dir . '/index.m3u8');
+                $hasLock = File::exists($dir . '/transcoding.lock');
                 
                 $status = 'failed';
                 if ($isRunning) {
                     $status = 'transcoding';
-                } elseif ($hasSuccessSentinel) {
+                } elseif ($hasPlaylist && !$hasLock) {
                     $status = 'completed';
+                } elseif (!$hasPlaylist && !$hasLock) {
+                    // This shouldn't happen usually for an existing directory, but let's be safe
+                    $status = 'failed';
                 }
 
                 $caches[] = [

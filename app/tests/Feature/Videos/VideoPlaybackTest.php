@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Models\Video;
 use App\Models\VideoView;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Process;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
@@ -32,6 +33,83 @@ class VideoPlaybackTest extends TestCase
             // The command should use sh -c and the path should be correctly escaped within it
             return str_contains($process->command, 'sh -c') && 
                    str_contains($process->command, escapeshellarg($fullPath));
+        });
+    }
+
+    public function test_legacy_cache_without_lock_file_is_marked_as_cached(): void
+    {
+        $user = User::factory()->create();
+        $user->allowedPaths()->create(['path' => 'movies']);
+        
+        $relativePath = 'movies/legacy.avi';
+        $this->makeVideoFile($relativePath); // Ensure file exists
+        $video = $this->getOrCreateVideo($relativePath, 'file');
+        
+        // Simulate legacy cache: index.m3u8 exists, but NO transcoding.lock
+        $this->makeHlsCache($video->hash, ['index.m3u8' => '#EXTM3U']);
+
+        $response = $this->actingAs($user)->get(route('videos.index', ['path' => 'movies'], false));
+        
+        $response->assertOk();
+        $items = collect($response->inertiaProps('items'))->keyBy('path');
+        $this->assertTrue($items[$relativePath]['is_cached'], 'Legacy cache should be identified as cached.');
+    }
+
+    public function test_broken_cache_with_lock_file_triggers_retranscoding(): void
+    {
+        Process::fake();
+        $user = User::factory()->create();
+        $user->allowedPaths()->create(['path' => 'movies']);
+        
+        $relativePath = 'movies/broken.avi';
+        $fullPath = $this->makeVideoFile($relativePath);
+        $video = $this->getOrCreateVideo($relativePath, 'file');
+        
+        // Simulate broken cache: lock file exists but no process is running
+        $this->makeHlsCache($video->hash, [
+            'index.m3u8' => '#EXTM3U',
+            'transcoding.lock' => ''
+        ]);
+
+        $this->actingAs($user)->get(route('videos.watch', ['path' => $relativePath], false));
+
+        // Retranscoding should be triggered because of the lock file
+        Process::assertRan(function ($process) use ($fullPath) {
+            return str_contains($process->command, 'ffmpeg') && 
+                   str_contains($process->command, escapeshellarg($fullPath));
+        });
+    }
+
+    public function test_vob_files_are_concatenated_in_natural_sort_order(): void
+    {
+        Process::fake();
+        $user = User::factory()->create();
+        $user->allowedPaths()->create(['path' => 'movies']);
+        
+        $this->makeVideoDirectory('movies/dvd');
+        $this->makeVideoFile('movies/dvd/VTS_01_1.VOB');
+        $this->makeVideoFile('movies/dvd/VTS_01_2.VOB');
+        $this->makeVideoFile('movies/dvd/VTS_01_10.VOB');
+        
+        // VTS_01_0.VOB should be ignored
+        $this->makeVideoFile('movies/dvd/VTS_01_0.VOB');
+
+        $this->actingAs($user)->get(route('videos.watch', ['path' => 'movies/dvd/VTS_01_1.VOB'], false));
+
+        // Verify that the command used the concat protocol
+        Process::assertRan(function ($process) {
+            $cmd = $process->command;
+            
+            // Check order: 1 -> 2 -> 10
+            $pos1 = strpos($cmd, 'VTS_01_1.VOB');
+            $pos2 = strpos($cmd, 'VTS_01_2.VOB');
+            $pos10 = strpos($cmd, 'VTS_01_10.VOB');
+            $pos0 = strpos($cmd, 'VTS_01_0.VOB');
+
+            return str_contains($cmd, 'concat:') &&
+                   $pos1 !== false && $pos2 !== false && $pos10 !== false &&
+                   $pos1 < $pos2 && $pos2 < $pos10 &&
+                   $pos0 === false; // Should not contain VTS_01_0.VOB
         });
     }
 

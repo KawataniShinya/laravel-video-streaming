@@ -32,8 +32,9 @@ class FavoriteController extends Controller
             $isCached = false;
             if ($video->type === 'file' && in_array(strtolower($ext), ['m2ts', 'avi', 'flv', 'vob'])) {
                 $outputDir = $hlsCachePath . '/' . $video->hash;
-                $successSentinel = $outputDir . '/transcode.success';
-                $isCached = File::exists($successSentinel);
+                $playlist = $outputDir . '/index.m3u8';
+                $lockFile = $outputDir . '/transcoding.lock';
+                $isCached = File::exists($playlist) && !File::exists($lockFile);
             }
 
             $view = $videoViews->get($video->id);
