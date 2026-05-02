@@ -59,6 +59,27 @@ class AdminUserControllerTest extends TestCase
         $this->assertTrue(Hash::check('NewPassword123!', $user->password));
     }
 
+    public function test_admin_can_create_a_user_without_a_password(): void
+    {
+        $admin = User::factory()->create(['role' => Role::Admin->value]);
+
+        $this
+            ->actingAs($admin)
+            ->post(route('admin.users.store', absolute: false), [
+                'name' => 'No Password User',
+                'email' => 'nopassword@example.com',
+                'password' => '',
+                'password_confirmation' => '',
+                'role' => Role::User->value,
+            ])
+            ->assertRedirect(route('admin.users.index', absolute: false));
+
+        $created = User::where('email', 'nopassword@example.com')->firstOrFail();
+        $this->assertSame('No Password User', $created->name);
+        $this->assertSame(Role::User->value, $created->role);
+        $this->assertNull($created->password);
+    }
+
     public function test_admin_cannot_delete_themselves(): void
     {
         $admin = User::factory()->create(['role' => Role::Admin->value]);
