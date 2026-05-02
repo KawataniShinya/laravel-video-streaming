@@ -2,198 +2,51 @@
 
 namespace App\Http\Controllers;
 
-use App\Enums\Role;
-use App\Models\Video as VideoModel;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\File;
+use App\UseCase\AdminHlsCacheUseCase;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
-
-use Illuminate\Support\Facades\Cache;
 
 class HlsCacheController extends Controller
 {
-    private $hlsCachePath;
-
-    public function __construct()
-    {
-        $this->hlsCachePath = config('video.hls_cache_path', storage_path('hls'));
-    }
-
-    private function authorizeAdmin()
-    {
-        if (Auth::user()->role !== Role::Admin->value) {
-            abort(403, 'Unauthorized action.');
-        }
-    }
-
-    private function getDirectorySize($path)
-    {
-        if (!File::exists($path)) return 0;
-
-        $output = shell_exec("du -sk " . escapeshellarg($path) . " 2>/dev/null");
-        if ($output) {
-            $parts = preg_split('/\s+/', trim($output));
-            if (isset($parts[0]) && is_numeric($parts[0])) {
-                return (int) $parts[0] * 1024;
-            }
-        }
-
-        return collect(File::allFiles($path))->sum(function ($file) {
-            return $file->getSize();
-        });
-    }
-
-    private function formatBytes($bytes, $precision = 2)
-    {
-        $units = ['B', 'KB', 'MB', 'GB', 'TB'];
-        $bytes = max($bytes, 0);
-        $pow = floor(($bytes ? log($bytes) : 0) / log(1024));
-        $pow = min($pow, count($units) - 1);
-        $bytes /= pow(1024, $pow);
-        return round($bytes, $precision) . ' ' . $units[$pow];
+    public function __construct(
+        private readonly AdminHlsCacheUseCase $adminHlsCacheUseCase,
+    ) {
     }
 
     public function index()
     {
-        $this->authorizeAdmin();
+        $caches = $this->adminHlsCacheUseCase->list(Auth::user());
 
-        $caches = [];
-
-        // Map hashes using the videos master table
-        $knownVideos = VideoModel::all()->pluck('path', 'hash')->toArray();
-
-        if (File::exists($this->hlsCachePath)) {
-            $directories = File::directories($this->hlsCachePath);
-            foreach ($directories as $dir) {
-                $hash = basename($dir);
-
-                $pidFile = $dir . '/ffmpeg.pid';
-                $isRunning = false;
-                if (File::exists($pidFile)) {
-                    $pid = trim(File::get($pidFile));
-                    if (is_numeric($pid)) {
-                        $isRunning = $this->isProcessRunning($pid);
-                    }
-                }
-
-                $hasPlaylist = File::exists($dir . '/index.m3u8');
-                $hasLock = File::exists($dir . '/transcoding.lock');
-                
-                $status = 'failed';
-                if ($isRunning) {
-                    $status = 'transcoding';
-                } elseif ($hasPlaylist && !$hasLock) {
-                    $status = 'completed';
-                } elseif (!$hasPlaylist && !$hasLock) {
-                    // This shouldn't happen usually for an existing directory, but let's be safe
-                    $status = 'failed';
-                }
-
-                $caches[] = [
-                    'hash' => $hash,
-                    'path' => $knownVideos[$hash] ?? 'Unknown (Source path not in database)',
-                    'size' => null, // To be fetched asynchronously
-                    'size_bytes' => 0,
-                    'status' => $status,
-                ];
-            }
-        }
-
-        // Default sort by path
-        usort($caches, function ($a, $b) {
-            return strcasecmp($a['path'], $b['path']);
-        });
-
-        $diskPath = $this->hlsCachePath;
-        if (!File::exists($diskPath)) {
-            $diskPath = storage_path();
-        }
-        $freeSpace = disk_free_space($diskPath);
-        $totalDiskSpace = disk_total_space($diskPath);
-
-        return Inertia::render('Admin/HlsCache/Index', [
-            'caches' => $caches,
-            'freeDiskSpace' => $this->formatBytes($freeSpace),
-            'totalDiskSpace' => $this->formatBytes($totalDiskSpace),
-        ]);
+        return Inertia::render('Admin/HlsCache/Index', $caches->jsonSerialize());
     }
 
     public function getSize($hash)
     {
-        $this->authorizeAdmin();
-        
-        $lock = Cache::lock('hls_size_calc_' . Auth::id(), 10);
-        
-        if (!$lock->get()) {
-            return response()->json(['message' => 'Another request is in progress'], 429);
-        }
+        $size = $this->adminHlsCacheUseCase->size(Auth::user(), $hash);
 
-        try {
-            $dir = $this->hlsCachePath . '/' . $hash;
-            $size = $this->getDirectorySize($dir);
-            
-            return response()->json([
-                'hash' => $hash,
-                'size_bytes' => $size,
-                'size_formatted' => $this->formatBytes($size)
-            ]);
-        } finally {
-            $lock->release();
-        }
-    }
-
-    private function isProcessRunning($pid)
-    {
-        $output = shell_exec("ps -p $pid 2>/dev/null");
-        return strpos($output, (string)$pid) !== false;
+        return response()->json($size->jsonSerialize());
     }
 
     public function destroy($hash)
     {
-        $this->authorizeAdmin();
-        $this->stopAndRemoveCache($hash);
+        $this->adminHlsCacheUseCase->delete(Auth::user(), $hash);
+
         return redirect()->route('admin.hls.index');
     }
 
     public function destroyMultiple(Request $request)
     {
-        $this->authorizeAdmin();
         $hashes = $request->input('hashes', []);
-        
-        foreach ($hashes as $hash) {
-            $this->stopAndRemoveCache($hash);
-        }
-        
+        $this->adminHlsCacheUseCase->deleteMultiple(Auth::user(), $hashes);
+
         return redirect()->route('admin.hls.index');
     }
 
     public function destroyAll()
     {
-        $this->authorizeAdmin();
-        if (File::exists($this->hlsCachePath)) {
-            $directories = File::directories($this->hlsCachePath);
-            foreach ($directories as $dir) {
-                $hash = basename($dir);
-                $this->stopAndRemoveCache($hash);
-            }
-        }
-        return redirect()->route('admin.hls.index');
-    }
+        $this->adminHlsCacheUseCase->deleteAll(Auth::user());
 
-    private function stopAndRemoveCache($hash)
-    {
-        $cacheDir = $this->hlsCachePath . '/' . $hash;
-        if (File::exists($cacheDir)) {
-            $pidFile = $cacheDir . '/ffmpeg.pid';
-            if (File::exists($pidFile)) {
-                $pid = trim(File::get($pidFile));
-                if (is_numeric($pid)) {
-                    // Kill the process
-                    shell_exec("kill -9 $pid > /dev/null 2>&1");
-                }
-            }
-            File::deleteDirectory($cacheDir);
-        }
+        return redirect()->route('admin.hls.index');
     }
 }
