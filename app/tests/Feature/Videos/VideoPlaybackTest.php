@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Models\Video;
 use App\Models\VideoView;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Process;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
@@ -76,6 +77,39 @@ class VideoPlaybackTest extends TestCase
         Process::assertRan(function ($process) use ($fullPath) {
             return str_contains($process->command, 'ffmpeg') && 
                    str_contains($process->command, escapeshellarg($fullPath));
+        });
+    }
+
+    public function test_vob_files_are_concatenated_in_natural_sort_order(): void
+    {
+        Process::fake();
+        $user = User::factory()->create();
+        $user->allowedPaths()->create(['path' => 'movies']);
+        
+        $this->makeVideoDirectory('movies/dvd');
+        $this->makeVideoFile('movies/dvd/VTS_01_1.VOB');
+        $this->makeVideoFile('movies/dvd/VTS_01_2.VOB');
+        $this->makeVideoFile('movies/dvd/VTS_01_10.VOB');
+        
+        // VTS_01_0.VOB should be ignored
+        $this->makeVideoFile('movies/dvd/VTS_01_0.VOB');
+
+        $this->actingAs($user)->get(route('videos.watch', ['path' => 'movies/dvd/VTS_01_1.VOB'], false));
+
+        // Verify that the command used the concat protocol
+        Process::assertRan(function ($process) {
+            $cmd = $process->command;
+            
+            // Check order: 1 -> 2 -> 10
+            $pos1 = strpos($cmd, 'VTS_01_1.VOB');
+            $pos2 = strpos($cmd, 'VTS_01_2.VOB');
+            $pos10 = strpos($cmd, 'VTS_01_10.VOB');
+            $pos0 = strpos($cmd, 'VTS_01_0.VOB');
+
+            return str_contains($cmd, 'concat:') &&
+                   $pos1 !== false && $pos2 !== false && $pos10 !== false &&
+                   $pos1 < $pos2 && $pos2 < $pos10 &&
+                   $pos0 === false; // Should not contain VTS_01_0.VOB
         });
     }
 

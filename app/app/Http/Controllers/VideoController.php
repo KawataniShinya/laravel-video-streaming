@@ -364,7 +364,7 @@ class VideoController extends Controller
         // In both cases, we should (re)start.
         if (!File::exists($playlist) || File::exists($lockFile)) {
             $ext = strtolower(pathinfo($inputPath, PATHINFO_EXTENSION));
-            $inputArg = escapeshellarg($inputPath);
+            $inputArg = "-i " . escapeshellarg($inputPath);
 
             if ($ext === 'vob') {
                 $directory = dirname($inputPath);
@@ -383,16 +383,16 @@ class VideoController extends Controller
                             $vobFiles[] = $file->getRealPath();
                         }
                     }
-                    sort($vobFiles);
+                    sort($vobFiles, SORT_NATURAL);
                     if (!empty($vobFiles)) {
                         $concatString = 'concat:' . implode('|', $vobFiles);
-                        $inputArg = escapeshellarg($concatString);
+                        $inputArg = "-i " . escapeshellarg($concatString);
                     }
                 }
             }
 
             // Detect audio streams
-            $probeCmd = "ffmpeg -i " . $inputArg . " 2>&1 | grep 'Stream #0' | grep 'Audio:' | wc -l";
+            $probeCmd = "ffmpeg " . $inputArg . " 2>&1 | grep 'Stream #0' | grep 'Audio:' | wc -l";
             $audioCount = (int) shell_exec($probeCmd);
 
             // Build stream mapping
@@ -417,8 +417,8 @@ class VideoController extends Controller
             $vfLow  = ($ext === 'vob') ? "yadif,scale=-2:360" : "scale=-2:360";
             $hlsFlags = "-fflags +genpts+igndts -avoid_negative_ts make_zero";
 
-            // Build inner command with transcoding.lock lifecycle
-            $innerCmd = "touch " . escapeshellarg($lockFile) . " && ffmpeg -analyzeduration 100M -probesize 100M -i " . $inputArg . " " .
+            // Build the inner command with transcoding.lock lifecycle
+            $innerCmd = "touch " . escapeshellarg($lockFile) . " && ffmpeg -analyzeduration 100M -probesize 100M " . $inputArg . " " .
                    $videoMaps . " " . $audioMaps . " " .
                    "-c:v:0 libx264 -preset ultrafast -pix_fmt yuv420p -filter:v:0 " . $vfHigh . " " .
                    "-c:v:1 libx264 -preset ultrafast -pix_fmt yuv420p -filter:v:1 " . $vfLow . " -b:v:1 800k -maxrate:v:1 1200k -bufsize:v:1 1600k " .
