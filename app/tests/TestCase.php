@@ -58,6 +58,14 @@ abstract class TestCase extends BaseTestCase
         return $fullPath;
     }
 
+    protected function getOrCreateVideo($path, $type)
+    {
+        return \App\Models\Video::firstOrCreate(
+            ['path' => $path],
+            ['hash' => md5($path), 'type' => $type]
+        );
+    }
+
     protected function makeHlsCache(string $hash, array $files = ['index.m3u8' => '#EXTM3U']): string
     {
         $cacheDir = $this->hlsTestRoot . '/' . $hash;

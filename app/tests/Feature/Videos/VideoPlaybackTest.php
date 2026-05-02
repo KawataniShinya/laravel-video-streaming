@@ -35,6 +35,50 @@ class VideoPlaybackTest extends TestCase
         });
     }
 
+    public function test_legacy_cache_without_lock_file_is_marked_as_cached(): void
+    {
+        $user = User::factory()->create();
+        $user->allowedPaths()->create(['path' => 'movies']);
+        
+        $relativePath = 'movies/legacy.avi';
+        $this->makeVideoFile($relativePath); // Ensure file exists
+        $video = $this->getOrCreateVideo($relativePath, 'file');
+        
+        // Simulate legacy cache: index.m3u8 exists, but NO transcoding.lock
+        $this->makeHlsCache($video->hash, ['index.m3u8' => '#EXTM3U']);
+
+        $response = $this->actingAs($user)->get(route('videos.index', ['path' => 'movies'], false));
+        
+        $response->assertOk();
+        $items = collect($response->inertiaProps('items'))->keyBy('path');
+        $this->assertTrue($items[$relativePath]['is_cached'], 'Legacy cache should be identified as cached.');
+    }
+
+    public function test_broken_cache_with_lock_file_triggers_retranscoding(): void
+    {
+        Process::fake();
+        $user = User::factory()->create();
+        $user->allowedPaths()->create(['path' => 'movies']);
+        
+        $relativePath = 'movies/broken.avi';
+        $fullPath = $this->makeVideoFile($relativePath);
+        $video = $this->getOrCreateVideo($relativePath, 'file');
+        
+        // Simulate broken cache: lock file exists but no process is running
+        $this->makeHlsCache($video->hash, [
+            'index.m3u8' => '#EXTM3U',
+            'transcoding.lock' => ''
+        ]);
+
+        $this->actingAs($user)->get(route('videos.watch', ['path' => $relativePath], false));
+
+        // Retranscoding should be triggered because of the lock file
+        Process::assertRan(function ($process) use ($fullPath) {
+            return str_contains($process->command, 'ffmpeg') && 
+                   str_contains($process->command, escapeshellarg($fullPath));
+        });
+    }
+
     public function test_mp4_watch_renders_player_and_creates_view_record(): void
     {
         $user = User::factory()->create();
