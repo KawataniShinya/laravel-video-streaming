@@ -26,7 +26,21 @@ class HlsCacheControllerTest extends TestCase
         $video = Video::create(['path' => 'movies/archive.avi', 'hash' => md5('movies/archive.avi'), 'type' => 'file']);
 
         $this->makeHlsCache($video->hash);
-        $this->makeHlsCache('orphan-hash', ['ffmpeg.pid' => '999999']);
+        
+        // Transcoding cache with progress
+        $transcodingHash = 'transcoding-hash';
+        $pid = '999999';
+        $this->makeHlsCache($transcodingHash, [
+            'ffmpeg.pid' => $pid,
+            'total_duration.txt' => '100.0',
+            'ffmpeg.log' => 'time=00:00:25.00'
+        ]);
+
+        // Mock ps -p to make the process appear running
+        \Illuminate\Support\Facades\Process::fake([
+            "ps -p $pid" => \Illuminate\Support\Facades\Process::result($pid),
+            "ffprobe *" => \Illuminate\Support\Facades\Process::result('100.0'),
+        ]);
 
         $response = $this
             ->actingAs($admin)
@@ -41,8 +55,10 @@ class HlsCacheControllerTest extends TestCase
 
         $this->assertSame('movies/archive.avi', $caches[$video->hash]['path']);
         $this->assertSame('completed', $caches[$video->hash]['status']);
-        $this->assertSame('Unknown (Source path not in database)', $caches['orphan-hash']['path']);
-        $this->assertSame('failed', $caches['orphan-hash']['status']);
+        $this->assertNull($caches[$video->hash]['progress']);
+
+        $this->assertSame('transcoding', $caches[$transcodingHash]['status']);
+        $this->assertEquals(25.0, $caches[$transcodingHash]['progress']);
     }
 
     public function test_admin_can_fetch_cache_size_and_delete_multiple_caches(): void
