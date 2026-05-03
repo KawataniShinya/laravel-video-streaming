@@ -32,15 +32,19 @@ class AdminHlsCacheUseCase
         if (File::exists($cacheBasePath)) {
             foreach (File::directories($cacheBasePath) as $dir) {
                 $hash = basename($dir);
-                $status = $this->cacheService->status($hash)->value;
+                $status = $this->cacheService->status($hash);
                 $sizeBytes = 0;
+                $progress = ($status === HlsCacheStatus::Transcoding) 
+                    ? $this->cacheService->progress($hash) 
+                    : null;
 
                 $caches[] = new HlsCacheItemDTO(
                     hash: $hash,
                     path: $knownVideos[$hash] ?? 'Unknown (Source path not in database)',
                     size: null,
                     sizeBytes: $sizeBytes,
-                    status: $status,
+                    status: $status->value,
+                    progress: $progress,
                 );
             }
         }

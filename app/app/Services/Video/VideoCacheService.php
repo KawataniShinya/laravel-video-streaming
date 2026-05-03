@@ -45,9 +45,48 @@ class VideoCacheService
         return $this->cacheDir($hash) . '/ffmpeg.log';
     }
 
+    public function durationPath(string $hash): string
+    {
+        return $this->cacheDir($hash) . '/total_duration.txt';
+    }
+
     public function isCached(string $hash): bool
     {
         return $this->status($hash) === HlsCacheStatus::Completed;
+    }
+
+    public function progress(string $hash): ?float
+    {
+        $durationFile = $this->durationPath($hash);
+        $logFile = $this->logPath($hash);
+
+        if (!File::exists($durationFile) || !File::exists($logFile)) {
+            return null;
+        }
+
+        $totalDuration = (float) trim(File::get($durationFile));
+        if ($totalDuration <= 0) {
+            return null;
+        }
+
+        // Get the last 'time=HH:MM:SS.ms' from the log
+        $process = Process::run("tail -n 100 " . escapeshellarg($logFile) . " | grep -o 'time=[0-9:.]*' | tail -n 1");
+        $output = $process->output();
+        
+        if (!$output) {
+            return 0.0;
+        }
+
+        $timeStr = str_replace('time=', '', trim($output));
+        $parts = explode(':', $timeStr);
+        if (count($parts) === 3) {
+            $currentSeconds = ($parts[0] * 3600) + ($parts[1] * 60) + (float)$parts[2];
+            $progress = ($currentSeconds / $totalDuration) * 100;
+
+            return min(100.0, max(0.0, $progress));
+        }
+
+        return 0.0;
     }
 
     public function status(string $hash): HlsCacheStatus
@@ -95,7 +134,7 @@ class VideoCacheService
         if (File::exists($pidFile)) {
             $pid = trim(File::get($pidFile));
             if (is_numeric($pid)) {
-                shell_exec("kill -9 $pid > /dev/null 2>&1");
+                Process::run("kill -9 $pid");
             }
         }
 
@@ -109,7 +148,9 @@ class VideoCacheService
             return 0;
         }
 
-        $output = shell_exec("du -sk " . escapeshellarg($path) . " 2>/dev/null");
+        $process = Process::run("du -sk " . escapeshellarg($path));
+        $output = $process->output();
+        
         if ($output) {
             $parts = preg_split('/\s+/', trim($output));
             if (isset($parts[0]) && is_numeric($parts[0])) {
@@ -129,6 +170,7 @@ class VideoCacheService
         $pidFile = $this->pidPath($hash);
         $lockFile = $this->lockPath($hash);
         $ffmpegLogPath = $this->logPath($hash);
+        $durationPath = $this->durationPath($hash);
 
         $this->ensureDirectory($hash);
 
@@ -142,6 +184,12 @@ class VideoCacheService
         if (!File::exists($playlist) || File::exists($lockFile)) {
             $ext = strtolower(pathinfo($inputPath, PATHINFO_EXTENSION));
             $inputArg = $this->buildInputArg($inputPath, $ext);
+
+            // Probe duration and save it
+            $totalDuration = $this->getTotalDuration($inputArg);
+            if ($totalDuration > 0) {
+                File::put($durationPath, (string)$totalDuration);
+            }
 
             $audioCount = $this->probeAudioStreamCount($inputArg);
             $videoMaps = "-map 0:v:0 -map 0:v:0";
@@ -216,9 +264,17 @@ class VideoCacheService
 
     private function probeAudioStreamCount(string $inputArg): int
     {
-        $probeCmd = 'ffmpeg ' . $inputArg . " 2>&1 | grep 'Stream #0' | grep 'Audio:' | wc -l";
+        $process = Process::run('ffmpeg ' . $inputArg . " 2>&1 | grep 'Stream #0' | grep 'Audio:' | wc -l");
 
-        return (int) shell_exec($probeCmd);
+        return (int) trim($process->output());
+    }
+
+    private function getTotalDuration(string $inputArg): float
+    {
+        $process = Process::run("ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 " . $inputArg);
+        $output = $process->output();
+
+        return is_numeric(trim((string)$output)) ? (float)trim($output) : 0.0;
     }
 
     private function buildInnerCommand(
@@ -247,8 +303,8 @@ class VideoCacheService
 
     private function isProcessRunning($pid): bool
     {
-        $output = shell_exec("ps -p $pid 2>/dev/null");
+        $process = Process::run("ps -p $pid");
 
-        return strpos((string) $output, (string) $pid) !== false;
+        return strpos((string) $process->output(), (string) $pid) !== false;
     }
 }

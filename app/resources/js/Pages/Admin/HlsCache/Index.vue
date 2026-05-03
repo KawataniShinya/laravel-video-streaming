@@ -266,9 +266,14 @@ const deleteAllCaches = () => {
                                             <span v-if="cache.status === 'completed'" class="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full font-semibold">
                                                 Completed
                                             </span>
-                                            <span v-else-if="cache.status === 'transcoding'" class="bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded-full font-semibold animate-pulse">
-                                                Transcoding...
-                                            </span>
+                                            <div v-else-if="cache.status === 'transcoding'" class="flex flex-col gap-1">
+                                                <span class="bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded-full font-semibold animate-pulse inline-block w-max">
+                                                    Transcoding... {{ cache.progress ? cache.progress.toFixed(1) + '%' : '' }}
+                                                </span>
+                                                <div v-if="cache.progress !== null" class="w-24 bg-gray-200 rounded-full h-1.5 dark:bg-gray-700 mt-1">
+                                                    <div class="bg-yellow-400 h-1.5 rounded-full transition-all duration-500" :style="{ width: cache.progress + '%' }"></div>
+                                                </div>
+                                            </div>
                                             <span v-else class="bg-red-100 text-red-800 text-xs px-2 py-1 rounded-full font-semibold">
                                                 Failed / Incomplete
                                             </span>
