@@ -12,6 +12,7 @@ final class HlsCacheItemDTO implements JsonSerializable
         public readonly ?string $size,
         public readonly int $sizeBytes,
         public readonly string $status,
+        public readonly ?float $progress = null,
     ) {
     }
 
@@ -23,6 +24,7 @@ final class HlsCacheItemDTO implements JsonSerializable
             'size' => $this->size,
             'size_bytes' => $this->sizeBytes,
             'status' => $this->status,
+            'progress' => $this->progress,
         ];
     }
 }
