@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\Video;
 use App\Models\UserAllowedPath;
+use App\Services\Video\VideoCacheService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
@@ -24,13 +25,13 @@ class RefreshVideoPaths extends Command
      */
     protected $description = 'Refresh video paths by removing database records and HLS cache for non-existent files/folders or redundant VOBs';
 
-    private string $videoRoot = '/videos';
-    private string $hlsCachePath;
+    private string $videoRoot;
 
-    public function __construct()
-    {
+    public function __construct(
+        private readonly VideoCacheService $cacheService
+    ) {
         parent::__construct();
-        $this->hlsCachePath = storage_path('hls');
+        $this->videoRoot = config('video.root', '/videos');
     }
 
     /**
@@ -46,6 +47,7 @@ class RefreshVideoPaths extends Command
         
         $this->refreshVideos(!$dryRun);
         $this->refreshAllowedPaths(!$dryRun);
+        $this->cleanupOrphanCaches(!$dryRun);
 
         $this->info('Cleanup process completed.');
         Log::info('[app:refresh-video-paths] Cleanup process completed.');
@@ -76,13 +78,13 @@ class RefreshVideoPaths extends Command
                 Log::warning('[app:refresh-video-paths] ' . $msg);
                 
                 // Check HLS cache
-                $cacheDir = $this->hlsCachePath . '/' . $video->hash;
-                if (File::exists($cacheDir)) {
+                if (File::exists($this->cacheService->cacheDir($video->hash))) {
+                    $cacheDir = $this->cacheService->cacheDir($video->hash);
                     $cacheMsg = "  -> HLS Cache found: {$cacheDir}";
                     $this->line($cacheMsg);
                     
                     if ($force) {
-                        $this->stopAndRemoveCache($video->hash);
+                        $this->cacheService->delete($video->hash);
                         $this->info("  -> [DELETED] HLS Cache removed.");
                         Log::info("[app:refresh-video-paths] Deleted HLS Cache: {$cacheDir}");
                     }
@@ -139,18 +141,40 @@ class RefreshVideoPaths extends Command
         Log::info('[app:refresh-video-paths] ' . $summary);
     }
 
-    private function stopAndRemoveCache($hash)
+    private function cleanupOrphanCaches($force)
     {
-        $cacheDir = $this->hlsCachePath . '/' . $hash;
-        if (File::exists($cacheDir)) {
-            $pidFile = $cacheDir . '/ffmpeg.pid';
-            if (File::exists($pidFile)) {
-                $pid = trim(File::get($pidFile));
-                if (is_numeric($pid)) {
-                    shell_exec("kill -9 $pid > /dev/null 2>&1");
+        $this->newLine();
+        $this->info('--- Checking Orphan HLS Caches ---');
+
+        $cacheBasePath = config('video.hls_cache_path', storage_path('hls'));
+        if (!File::exists($cacheBasePath)) {
+            return;
+        }
+
+        $hashesInDb = Video::pluck('hash')->toArray();
+        $directories = File::directories($cacheBasePath);
+        $count = 0;
+
+        foreach ($directories as $dir) {
+            $hash = basename($dir);
+            if (!in_array($hash, $hashesInDb)) {
+                $count++;
+                $msg = "ORPHAN CACHE: {$hash} (No matching record in database)";
+                $this->warn($msg);
+                Log::warning('[app:refresh-video-paths] ' . $msg);
+
+                if ($force) {
+                    $this->cacheService->delete($hash);
+                    $this->info("  -> [DELETED] Orphan cache directory removed.");
+                    Log::info("[app:refresh-video-paths] Deleted Orphan Cache: {$hash}");
+                } else {
+                    $this->line("  -> [DRY-RUN] Orphan cache directory would be removed.");
                 }
             }
-            File::deleteDirectory($cacheDir);
         }
+
+        $summary = "Checked " . count($directories) . " cache directories. Found {$count} orphan items.";
+        $this->info($summary);
+        Log::info('[app:refresh-video-paths] ' . $summary);
     }
 }

@@ -1,3 +1,4 @@
 .idea
 redis
 docker-compose.yaml
+.codex
