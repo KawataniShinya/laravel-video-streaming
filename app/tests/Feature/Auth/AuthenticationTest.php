@@ -51,4 +51,22 @@ class AuthenticationTest extends TestCase
         $this->assertGuest();
         $response->assertRedirect('/login');
     }
+
+    public function test_expired_session_redirects_back_to_login_with_status(): void
+    {
+        // Define a temporary route that explicitly returns a 419 response
+        // to test our custom exception handler in bootstrap/app.php.
+        \Illuminate\Support\Facades\Route::post('/test-419', function () {
+            abort(419);
+        });
+
+        $this->from('/login');
+
+        $response = $this->post('/test-419');
+
+        // Our handler should convert the 419 into a 302 redirect back to /login
+        $response->assertStatus(302);
+        $response->assertRedirect('/login');
+        $response->assertSessionHas('status', 'The page expired, please try again.');
+    }
 }

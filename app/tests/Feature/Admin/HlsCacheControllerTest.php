@@ -54,9 +54,11 @@ class HlsCacheControllerTest extends TestCase
         $caches = collect($response->inertiaProps('caches'))->keyBy('hash');
 
         $this->assertSame('movies/archive.avi', $caches[$video->hash]['path']);
+        $this->assertSame($video->hash, $caches[$video->hash]['hash']);
         $this->assertSame('completed', $caches[$video->hash]['status']);
         $this->assertNull($caches[$video->hash]['progress']);
 
+        $this->assertSame($transcodingHash, $caches[$transcodingHash]['hash']);
         $this->assertSame('transcoding', $caches[$transcodingHash]['status']);
         $this->assertEquals(25.0, $caches[$transcodingHash]['progress']);
     }

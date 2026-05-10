@@ -94,14 +94,54 @@ const sortedCaches = computed(() => {
             valB = b.size_bytes || 0;
         }
 
-        if (valA === null) return 1; // Put nulls at end
-        if (valB === null) return -1;
+        if (valA === null || valA === undefined) return 1; // Put nulls at end
+        if (valB === null || valB === undefined) return -1;
+
+        if (typeof valA === 'string' && typeof valB === 'string') {
+            return valA.localeCompare(valB) * modifier;
+        }
 
         if (valA < valB) return -1 * modifier;
         if (valA > valB) return 1 * modifier;
         return 0;
     });
 });
+
+const copiedHash = ref(null);
+const copyToClipboard = async (text) => {
+    try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(text);
+        } else {
+            // Fallback for non-secure contexts (e.g. http://localhost.app.sample.jp)
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            textArea.style.position = "fixed";
+            textArea.style.left = "-9999px";
+            textArea.style.top = "-9999px";
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            const successful = document.execCommand('copy');
+            document.body.removeChild(textArea);
+            if (!successful) throw new Error('copy failed');
+        }
+
+        copiedHash.value = text;
+        setTimeout(() => {
+            if (copiedHash.value === text) {
+                copiedHash.value = null;
+            }
+        }, 2000);
+    } catch (err) {
+        console.error('Failed to copy: ', err);
+    }
+};
+
+const getAriaSort = (key) => {
+    if (sortKey.value !== key) return 'none';
+    return sortOrder.value === 'asc' ? 'ascending' : 'descending';
+};
 
 const toggleAll = (e) => {
     if (e.target.checked) {
@@ -220,33 +260,55 @@ const deleteAllCaches = () => {
                                         </th>
                                         <th 
                                             scope="col" 
-                                            class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition"
-                                            @click="sortBy('path')"
+                                            class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider p-0"
+                                            :aria-sort="getAriaSort('path')"
                                         >
-                                            <div class="flex items-center gap-1">
+                                            <button 
+                                                @click="sortBy('path')"
+                                                class="flex items-center gap-1 w-full h-full px-6 py-3 hover:bg-gray-100 transition focus:outline-none focus:bg-gray-100"
+                                            >
                                                 Path (Best Effort)
                                                 <span v-if="sortKey === 'path'">{{ sortOrder === 'asc' ? '↑' : '↓' }}</span>
-                                            </div>
+                                            </button>
                                         </th>
                                         <th 
                                             scope="col" 
-                                            class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition"
-                                            @click="sortBy('status')"
+                                            class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider p-0"
+                                            :aria-sort="getAriaSort('hash')"
                                         >
-                                            <div class="flex items-center gap-1">
+                                            <button 
+                                                @click="sortBy('hash')"
+                                                class="flex items-center gap-1 w-full h-full px-6 py-3 hover:bg-gray-100 transition focus:outline-none focus:bg-gray-100"
+                                            >
+                                                Hash
+                                                <span v-if="sortKey === 'hash'">{{ sortOrder === 'asc' ? '↑' : '↓' }}</span>
+                                            </button>
+                                        </th>
+                                        <th 
+                                            scope="col" 
+                                            class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider p-0"
+                                            :aria-sort="getAriaSort('status')"
+                                        >
+                                            <button 
+                                                @click="sortBy('status')"
+                                                class="flex items-center gap-1 w-full h-full px-6 py-3 hover:bg-gray-100 transition focus:outline-none focus:bg-gray-100"
+                                            >
                                                 Status
                                                 <span v-if="sortKey === 'status'">{{ sortOrder === 'asc' ? '↑' : '↓' }}</span>
-                                            </div>
+                                            </button>
                                         </th>
                                         <th 
                                             scope="col" 
-                                            class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition"
-                                            @click="sortBy('size')"
+                                            class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider p-0"
+                                            :aria-sort="getAriaSort('size')"
                                         >
-                                            <div class="flex items-center gap-1">
+                                            <button 
+                                                @click="sortBy('size')"
+                                                class="flex items-center gap-1 w-full h-full px-6 py-3 hover:bg-gray-100 transition focus:outline-none focus:bg-gray-100"
+                                            >
                                                 Size
                                                 <span v-if="sortKey === 'size'">{{ sortOrder === 'asc' ? '↑' : '↓' }}</span>
-                                            </div>
+                                            </button>
                                         </th>
                                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
                                     </tr>
@@ -262,6 +324,32 @@ const deleteAllCaches = () => {
                                             >
                                         </td>
                                         <td class="px-6 py-4 text-sm text-gray-900 break-all">{{ cache.path }}</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-mono relative">
+                                            <button 
+                                                @click="copyToClipboard(cache.hash)"
+                                                class="text-gray-500 hover:text-blue-600 transition flex items-center gap-1 group focus:outline-none"
+                                                title="Click to copy full hash"
+                                            >
+                                                <span>{{ cache.hash.substring(0, 8) }}...</span>
+                                                <svg class="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6a2 2 0 002-2V7a2 2 0 00-2-2h-6a2 2 0 00-2 2z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
+                                                
+                                                <transition
+                                                    enter-active-class="transition ease-out duration-200"
+                                                    enter-from-class="opacity-0 translate-y-1"
+                                                    enter-to-class="opacity-100 translate-y-0"
+                                                    leave-active-class="transition ease-in duration-150"
+                                                    leave-from-class="opacity-100 translate-y-0"
+                                                    leave-to-class="opacity-0 translate-y-1"
+                                                >
+                                                    <span 
+                                                        v-if="copiedHash === cache.hash"
+                                                        class="absolute -top-8 left-0 bg-gray-800 text-white text-[10px] px-2 py-1 rounded shadow-lg z-20 whitespace-nowrap"
+                                                    >
+                                                        Copied!
+                                                    </span>
+                                                </transition>
+                                            </button>
+                                        </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm">
                                             <span v-if="cache.status === 'completed'" class="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full font-semibold">
                                                 Completed
