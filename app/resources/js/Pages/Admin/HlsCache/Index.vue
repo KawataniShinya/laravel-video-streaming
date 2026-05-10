@@ -110,7 +110,23 @@ const sortedCaches = computed(() => {
 const copiedHash = ref(null);
 const copyToClipboard = async (text) => {
     try {
-        await navigator.clipboard.writeText(text);
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(text);
+        } else {
+            // Fallback for non-secure contexts (e.g. http://localhost.app.sample.jp)
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            textArea.style.position = "fixed";
+            textArea.style.left = "-9999px";
+            textArea.style.top = "-9999px";
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            const successful = document.execCommand('copy');
+            document.body.removeChild(textArea);
+            if (!successful) throw new Error('copy failed');
+        }
+
         copiedHash.value = text;
         setTimeout(() => {
             if (copiedHash.value === text) {
