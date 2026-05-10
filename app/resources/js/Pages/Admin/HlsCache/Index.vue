@@ -52,7 +52,8 @@ const fetchNextSize = async () => {
 
     isFetching.value = true;
     try {
-        const response = await axios.get(route('admin.hls.size', nextItem.hash));
+        // Use relative URL to avoid domain mismatch issues (401 Unauthorized)
+        const response = await axios.get(route('admin.hls.size', nextItem.hash, false));
         nextItem.size = response.data.size_formatted;
         nextItem.size_bytes = response.data.size_bytes;
         // Proceed to next
@@ -61,6 +62,10 @@ const fetchNextSize = async () => {
         if (error.response && error.response.status === 429) {
             // Wait 2 seconds and retry same item
             setTimeout(fetchNextSize, 2000);
+        } else if (error.response && error.response.status === 401) {
+            // Session lost, stop fetching
+            console.error('Session expired. Stopping size calculation.');
+            isFetching.value = false;
         } else {
             nextItem.size = 'Error';
             fetchNextSize();
