@@ -263,7 +263,23 @@ docker compose up -d --build
 - `nginx-proxy`: ホスト名振り分け
 - `redis`: セッション・キャッシュ用
 
-### 6. Laravel の初期化を行う
+### 6. データベース作成
+
+(ローカル)
+```bash
+docker compose exec db bash
+```
+
+(db コンテナ)
+```bash
+mysql -u root -proot -e "CREATE USER 'laravelUser' IDENTIFIED BY 'password000'"
+mysql -u root -proot -e "GRANT all ON *.* TO 'laravelUser'"
+mysql -u root -proot -e "FLUSH PRIVILEGES"
+mysql -u root -proot -e "CREATE DATABASE laravel_sample"
+exit
+```
+
+### 7. Laravel の初期化を行う
 
 ```bash
 docker compose exec app composer install
@@ -277,7 +293,7 @@ docker compose exec app php artisan migrate --seed
 - password: `password123`
 - role: `admin`
 
-### 7. ブラウザで開く
+### 8. ブラウザで開く
 
 ```text
 http://localhost.app.sample.jp
