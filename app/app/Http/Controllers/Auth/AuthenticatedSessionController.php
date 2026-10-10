@@ -10,15 +10,22 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Inertia\Response;
+use App\Services\PageRenderer;
 
 class AuthenticatedSessionController extends Controller
 {
     /**
      * Display the login view.
      */
-    public function create(): Response
+    public function create(Request $request, PageRenderer $pages)
     {
-        return Inertia::render('Auth/Login', [
+        $email = $request->query('email', '');
+        $email = is_string($email) && strlen($email) <= 254 && filter_var($email, FILTER_VALIDATE_EMAIL)
+            ? $email
+            : '';
+
+        return $pages->render($request, 'Auth/Login', [
+            'email' => $request->old('email', $email),
             'canResetPassword' => Route::has('password.request'),
             'status' => session('status'),
         ]);

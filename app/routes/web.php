@@ -8,6 +8,11 @@ use App\Http\Controllers\VideoController;
 use App\Http\Controllers\AdminUserController;
 use App\Http\Controllers\FavoriteController;
 use App\Http\Controllers\HlsCacheController;
+use App\Http\Controllers\UiModeController;
+use App\Services\PageRenderer;
+use Illuminate\Http\Request;
+
+Route::get('/ui/{mode}', UiModeController::class)->name('ui.mode');
 
 Route::get('/', function () {
     return auth()->check()
@@ -15,8 +20,8 @@ Route::get('/', function () {
         : redirect()->route('login');
 });
 
-Route::get('/dashboard', function () {
-    return Inertia::render('Dashboard', []);
+Route::get('/dashboard', function (Request $request, PageRenderer $pages) {
+    return $pages->render($request, 'Dashboard');
 })->middleware(['auth', 'verified'])->name('dashboard');
 
 Route::middleware('auth')->group(function () {

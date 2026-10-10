@@ -5,6 +5,7 @@ namespace Tests\Feature\Auth;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
+use Inertia\Testing\AssertableInertia as Assert;
 
 class AuthenticationTest extends TestCase
 {
@@ -15,6 +16,34 @@ class AuthenticationTest extends TestCase
         $response = $this->get('/login');
 
         $response->assertStatus(200);
+    }
+
+    public function test_query_email_prefills_both_login_screens_without_authenticating(): void
+    {
+        $url = '/login?' . http_build_query(['email' => 'user+tv@example.com']);
+        $this->get($url)->assertInertia(fn (Assert $page) => $page->component('Auth/Login')->where('email', 'user+tv@example.com'));
+        $this->withHeader('User-Agent', 'Firefox/34.0')->get($url)->assertOk()
+            ->assertSee('value="user+tv@example.com"', false)
+            ->assertSee('type="password" required autofocus', false);
+        $this->assertGuest();
+    }
+
+    public function test_previous_email_input_takes_priority_over_query_prefill(): void
+    {
+        $this->withSession(['_old_input' => ['email' => 'edited@example.com']])
+            ->get('/login?email=bookmark%40example.com')
+            ->assertInertia(fn (Assert $page) => $page->where('email', 'edited@example.com'));
+        $this->withHeader('User-Agent', 'Firefox/34.0')
+            ->withSession(['_old_input' => ['email' => 'edited@example.com']])
+            ->get('/login?email=bookmark%40example.com')->assertSee('value="edited@example.com"', false);
+    }
+
+    public function test_invalid_or_array_query_email_is_ignored(): void
+    {
+        foreach (['not-an-email', ['user@example.com'], str_repeat('a', 255) . '@example.com'] as $email) {
+            $this->get('/login?' . http_build_query(['email' => $email]))
+                ->assertOk()->assertInertia(fn (Assert $page) => $page->where('email', ''));
+        }
     }
 
     public function test_users_can_authenticate_using_the_login_screen(): void
