@@ -19,5 +19,11 @@
     </head>
     <body class="font-sans antialiased">
         @inertia
+        <div id="legacy-fallback" data-forced-modern="{{ request()->cookie('ui_mode') === 'modern' ? '1' : '0' }}" style="display:none; padding:20px; background:white; color:black;">
+            <p>画面が表示されない場合は、簡易表示をお試しください。</p>
+            <a href="{{ route('ui.mode', ['mode' => 'legacy', 'return' => request()->getRequestUri()], false) }}">簡易表示に切り替える</a>
+        </div>
+        <noscript><a href="{{ route('ui.mode', ['mode' => 'legacy', 'return' => request()->getRequestUri()], false) }}">簡易表示に切り替える</a></noscript>
+        <script src="/legacy/detect.js"></script>
     </body>
 </html>

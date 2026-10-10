@@ -6,11 +6,13 @@ use App\UseCase\FavoriteUseCase;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
+use App\Services\PageRenderer;
 
 class FavoriteController extends Controller
 {
     public function __construct(
         private readonly FavoriteUseCase $favoriteUseCase,
+        private readonly PageRenderer $pages,
     ) {
     }
 
@@ -18,7 +20,7 @@ class FavoriteController extends Controller
     {
         $favorites = $this->favoriteUseCase->list(Auth::user());
 
-        return Inertia::render('Favorites/Index', $favorites->jsonSerialize());
+        return $this->pages->render(request(), 'Favorites/Index', $favorites->jsonSerialize());
     }
 
     public function toggle(Request $request)

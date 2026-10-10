@@ -9,6 +9,7 @@ abstract class TestCase extends BaseTestCase
 {
     protected string $videoTestRoot;
     protected string $hlsTestRoot;
+    protected string $viewTestRoot;
 
     protected function setUp(): void
     {
@@ -17,22 +18,29 @@ abstract class TestCase extends BaseTestCase
         $suffix = str_replace('\\', '_', static::class);
         $this->videoTestRoot = storage_path('framework/testing/videos/' . $suffix);
         $this->hlsTestRoot = storage_path('framework/testing/hls/' . $suffix);
+        $this->viewTestRoot = storage_path('framework/testing/views/' . $suffix);
 
         File::deleteDirectory($this->videoTestRoot);
         File::deleteDirectory($this->hlsTestRoot);
         File::ensureDirectoryExists($this->videoTestRoot);
         File::ensureDirectoryExists($this->hlsTestRoot);
+        File::ensureDirectoryExists($this->viewTestRoot);
 
         config([
             'video.root' => $this->videoTestRoot,
             'video.hls_cache_path' => $this->hlsTestRoot,
+            // CLI tests must not overwrite the web user's compiled Blade files.
+            'view.compiled' => $this->viewTestRoot,
         ]);
+        $this->app['view.engine.resolver']->forget('blade');
+        $this->app->forgetInstance('blade.compiler');
     }
 
     protected function tearDown(): void
     {
         File::deleteDirectory($this->videoTestRoot);
         File::deleteDirectory($this->hlsTestRoot);
+        File::deleteDirectory($this->viewTestRoot);
 
         parent::tearDown();
     }

@@ -32,6 +32,19 @@ class LoginRequest extends FormRequest
         ];
     }
 
+    public function messages(): array
+    {
+        if (! $this->attributes->get('legacy_ui')) {
+            return [];
+        }
+
+        return [
+            'email.required' => 'メールアドレスを入力してください。',
+            'email.email' => 'メールアドレスの形式で入力してください（例: user@example.com）。',
+            'password.required' => 'パスワードを入力してください。',
+        ];
+    }
+
     /**
      * Attempt to authenticate the request's credentials.
      *

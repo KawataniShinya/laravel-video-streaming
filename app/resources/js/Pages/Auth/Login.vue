@@ -7,7 +7,11 @@ import PrimaryButton from '@/Components/PrimaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 
-defineProps({
+const props = defineProps({
+    email: {
+        type: String,
+        default: '',
+    },
     canResetPassword: {
         type: Boolean,
     },
@@ -17,7 +21,7 @@ defineProps({
 });
 
 const form = useForm({
-    email: '',
+    email: props.email,
     password: '',
     remember: false,
 });
@@ -47,7 +51,7 @@ const submit = () => {
                     class="mt-1 block w-full"
                     v-model="form.email"
                     required
-                    autofocus
+                    :autofocus="!form.email"
                     autocomplete="username"
                 />
 
@@ -64,6 +68,7 @@ const submit = () => {
                     v-model="form.password"
                     required
                     autocomplete="current-password"
+                    :autofocus="!!form.email"
                 />
 
                 <InputError class="mt-2" :message="form.errors.password" />

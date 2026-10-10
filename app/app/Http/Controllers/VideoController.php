@@ -13,6 +13,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\File;
 use Inertia\Inertia;
+use App\Services\PageRenderer;
 
 class VideoController extends Controller
 {
@@ -20,6 +21,7 @@ class VideoController extends Controller
         private readonly VideoUseCase $videoUseCase,
         private readonly UserAccessService $accessService,
         private readonly VideoPathService $pathService,
+        private readonly PageRenderer $pages,
     ) {
     }
 
@@ -37,14 +39,14 @@ class VideoController extends Controller
 
         $library = $this->videoUseCase->list($user, $path);
 
-        return Inertia::render('Videos/Index', $library->jsonSerialize());
+        return $this->pages->render(request(), 'Videos/Index', $library->jsonSerialize());
     }
 
     public function history()
     {
         $history = $this->videoUseCase->history(Auth::user());
 
-        return Inertia::render('Videos/History', $history->jsonSerialize());
+        return $this->pages->render(request(), 'Videos/History', $history->jsonSerialize());
     }
 
     public function watch($path)
@@ -66,10 +68,10 @@ class VideoController extends Controller
         $props = $watch->jsonSerialize();
 
         if ($videoPath->extension() === 'mp4') {
-            return Inertia::render('Videos/WatchMp4', $props);
+            return $this->pages->render(request(), 'Videos/WatchMp4', $props);
         }
 
-        return Inertia::render('Videos/WatchHls', $props);
+        return $this->pages->render(request(), 'Videos/WatchHls', $props);
     }
 
     public function stream($path)
