@@ -11,9 +11,9 @@ const showingNavigationDropdown = ref(false);
 </script>
 
 <template>
-    <div class="h-screen flex flex-col overflow-hidden bg-gray-100">
-        <!-- Navigation & Header (Fixed at top) -->
-        <div class="flex-none shadow-sm z-10 bg-white">
+    <div class="min-h-screen flex flex-col bg-gray-100 pb-12">
+        <!-- Keep document scrolling while navigation and the heading stay visible. -->
+        <div class="sticky top-0 flex-none shadow-sm z-10 bg-white">
             <nav class="border-b border-gray-100">
                 <!-- Primary Navigation Menu -->
                 <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -252,13 +252,13 @@ const showingNavigationDropdown = ref(false);
             </header>
         </div>
 
-        <!-- Scrollable Page Content -->
-        <main class="flex-grow overflow-y-auto">
+        <!-- Page Content -->
+        <main class="min-w-0 flex-grow">
             <slot />
         </main>
 
-        <!-- Footer (Fixed at bottom) -->
-        <footer class="flex-none py-4 border-t border-gray-200 bg-white z-10">
+        <!-- The root's bottom padding reserves space for this fixed footer. -->
+        <footer class="fixed inset-x-0 bottom-0 flex h-12 items-center border-t border-gray-200 bg-white z-10">
             <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
                 <div class="text-center text-xs text-gray-500">
                     &copy; 2026 KawataniShinya. All rights reserved.
