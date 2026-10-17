@@ -191,20 +191,34 @@ class VideoCacheService
                 File::put($durationPath, (string)$totalDuration);
             }
 
-            $audioCount = $this->probeAudioStreamCount($inputArg);
             $videoMaps = "-map 0:v:0 -map 0:v:0";
             $audioMaps = '';
-            $streamMap = 'v:0,agroup:aud,name:High v:1,agroup:aud,name:Low ';
+            $audioStreamMap = '';
 
-            if ($ext === 'vob') {
-                for ($i = 0; $i < min($audioCount, 2); $i++) {
-                    $streamMap .= "a:$i,agroup:aud,name:Track" . ($i + 1) . ' ';
+            if ($ext === 'm2ts') {
+                foreach ($this->probeAudioTracks($inputArg) as $i => $track) {
+                    $audioMaps .= " -map 0:a:$i";
+                    $audioStreamMap .= "a:$i,agroup:aud,name:Track" . ($i + 1);
+                    $audioStreamMap .= ',default:' . ($i === 0 ? 'yes' : 'no');
+                    $language = strtolower((string) ($track['tags']['language'] ?? ''));
+                    // Only pass language codes, never arbitrary metadata, into the shell command.
+                    if (preg_match('/^[a-z]{2,3}$/D', $language) && $language !== 'und') {
+                        $audioStreamMap .= ',language:' . $language;
+                    }
+                    $audioStreamMap .= ' ';
+                }
+            } else {
+                $audioCount = $this->probeAudioStreamCount($inputArg);
+                $trackCount = $ext === 'vob' ? min($audioCount, 2) : min($audioCount, 1);
+                for ($i = 0; $i < $trackCount; $i++) {
+                    $name = $ext === 'vob' ? 'Track' . ($i + 1) : 'Audio';
+                    $audioStreamMap .= "a:$i,agroup:aud,name:$name ";
                     $audioMaps .= " -map 0:a:$i";
                 }
-            } elseif ($audioCount > 0) {
-                $streamMap .= 'a:0,agroup:aud,name:Audio ';
-                $audioMaps = '-map 0:a:0';
             }
+
+            $audioGroup = $audioMaps !== '' ? ',agroup:aud' : '';
+            $streamMap = "v:0$audioGroup,name:High v:1$audioGroup,name:Low " . $audioStreamMap;
 
             $vfHigh = ($ext === 'vob') ? 'yadif' : 'null';
             $vfLow = ($ext === 'vob') ? 'yadif,scale=-2:360' : 'scale=-2:360';
@@ -260,6 +274,26 @@ class VideoCacheService
         }
 
         return '-i ' . escapeshellarg('concat:' . implode('|', $vobFiles));
+    }
+
+    /** @return array<int, array> */
+    private function probeAudioTracks(string $inputArg): array
+    {
+        $result = Process::run(
+            'ffprobe -v error -analyzeduration 100M -probesize 100M '
+            . '-select_streams a -show_entries stream=index:stream_tags=language -of json ' . $inputArg
+        );
+
+        if (!$result->successful()) {
+            throw new \RuntimeException('Could not inspect M2TS audio tracks.');
+        }
+
+        $data = json_decode($result->output(), true, flags: JSON_THROW_ON_ERROR);
+        if (!isset($data['streams']) || !is_array($data['streams'])) {
+            throw new \RuntimeException('Invalid M2TS audio track information.');
+        }
+
+        return array_values($data['streams']);
     }
 
     private function probeAudioStreamCount(string $inputArg): int

@@ -127,6 +127,10 @@ onMounted(() => {
             currentAudioTrack.value = hls.audioTrack;
         });
 
+        hls.on(Hls.Events.AUDIO_TRACK_SWITCHED, function (event, data) {
+            currentAudioTrack.value = data.id;
+        });
+
         hls.on(Hls.Events.ERROR, function (event, data) {
             if (data.fatal) {
                 switch (data.type) {
@@ -230,9 +234,9 @@ onBeforeUnmount(() => {
                         </div>
 
                         <!-- Audio Track Selection -->
-                        <div v-if="audioTracks.length > 1" class="mb-4 p-3 bg-gray-100 rounded-lg flex items-center gap-3">
+                        <div v-if="audioTracks.length > 1" class="mb-4 p-3 bg-gray-100 rounded-lg flex flex-wrap items-center gap-3">
                             <span class="text-sm font-bold text-gray-700">Audio:</span>
-                            <div class="flex gap-2">
+                            <div class="flex flex-wrap gap-2">
                                 <button
                                     v-for="(track, index) in audioTracks"
                                     :key="index"
@@ -244,7 +248,7 @@ onBeforeUnmount(() => {
                                             : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-50'
                                     ]"
                                 >
-                                    {{ track.name || `Track ${index + 1}` }}
+                                    {{ track.lang && track.lang !== 'und' ? `${track.lang} / ` : '' }}Track {{ index + 1 }}
                                 </button>
                             </div>
                         </div>

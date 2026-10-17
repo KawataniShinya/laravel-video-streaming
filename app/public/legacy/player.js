@@ -78,7 +78,9 @@
                 play();
             });
             hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, function () {
-                setOptions(audio, hls.audioTracks, function (track, i) { return track.name || track.lang || '音声 ' + (i + 1); });
+                setOptions(audio, hls.audioTracks, function (track, i) {
+                    return (track.lang && track.lang !== 'und' ? track.lang + ' / ' : '') + '音声 ' + (i + 1);
+                });
             });
             hls.on(Hls.Events.ERROR, function (event, data) {
                 if (data.fatal) {

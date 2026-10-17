@@ -4,6 +4,7 @@ namespace Tests\Unit\Services\Video;
 
 use App\Services\Video\VideoCacheService;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Process;
 use Tests\TestCase;
 
 class VideoCacheServiceTest extends TestCase
@@ -14,6 +15,107 @@ class VideoCacheServiceTest extends TestCase
     {
         parent::setUp();
         $this->service = new VideoCacheService();
+    }
+
+    public function test_m2ts_keeps_all_audio_tracks_and_safe_language_codes(): void
+    {
+        Process::fake([
+            'ffprobe *-select_streams a*' => Process::result(json_encode(['streams' => [
+                ['index' => 1, 'tags' => ['language' => 'eng']],
+                ['index' => 4, 'tags' => ['language' => 'jpn']],
+                ['index' => 7, 'tags' => ['language' => 'eng; touch /tmp/unwanted']],
+            ]])),
+            '*' => Process::result(),
+        ]);
+        $input = $this->makeVideoFile("日本語 ディスク/本編's.m2ts");
+
+        $this->service->ensure($input, 'multi-audio');
+
+        $command = $this->conversionCommand();
+        foreach ([0, 1, 2] as $i) {
+            $this->assertStringContainsString("-map 0:a:$i", $command);
+        }
+        $this->assertStringContainsString('a:0,agroup:aud,name:Track1,default:yes,language:eng', $command);
+        $this->assertStringContainsString('a:1,agroup:aud,name:Track2,default:no,language:jpn', $command);
+        $this->assertStringContainsString('a:2,agroup:aud,name:Track3,default:no', $command);
+        $this->assertStringNotContainsString('unwanted', $command);
+        $this->assertStringNotContainsString('-map 0:a:4', $command);
+        $this->assertStringContainsString('-c:a aac -ac 2 -ar 44100', $command);
+    }
+
+    public function test_m2ts_with_one_audio_track_or_no_audio_is_supported(): void
+    {
+        foreach ([0, 1] as $count) {
+            Process::fake([
+                'ffprobe *-select_streams a*' => Process::result(json_encode([
+                    'streams' => $count ? [['index' => 1]] : [],
+                ])),
+                '*' => Process::result(),
+            ]);
+            $this->service->ensure($this->makeVideoFile('single.m2ts'), 'audio-count-' . $count);
+            $command = $this->conversionCommand();
+            if ($count === 0) {
+                $this->assertStringNotContainsString('agroup:', $command);
+                $this->assertStringNotContainsString('-map 0:a:', $command);
+                $this->assertStringNotContainsString('-c:a aac', $command);
+            } else {
+                $this->assertStringContainsString('-map 0:a:0', $command);
+                $this->assertStringNotContainsString('-map 0:a:1', $command);
+                $this->assertStringNotContainsString('language:', $command);
+            }
+        }
+    }
+
+    public function test_failed_or_invalid_m2ts_probe_does_not_start_a_partial_conversion(): void
+    {
+        foreach ([Process::result('', 'probe failed', 1), Process::result('{}')] as $result) {
+            Process::fake(['ffprobe *-select_streams a*' => $result, '*' => Process::result()]);
+            try {
+                $this->service->ensure($this->makeVideoFile('invalid.m2ts'), 'invalid-probe');
+                $this->fail('Audio probe failure should stop conversion.');
+            } catch (\RuntimeException $error) {
+                $this->assertStringContainsString('M2TS audio', $error->getMessage());
+            }
+            Process::assertNotRan(fn ($process) => str_starts_with($process->command, 'nohup '));
+        }
+    }
+
+    public function test_existing_m2ts_cache_is_preserved_until_manually_deleted(): void
+    {
+        Process::fake();
+        $this->makeHlsCache('existing', ['index.m3u8' => '#EXTM3U']);
+
+        $this->service->ensure($this->makeVideoFile('existing.m2ts'), 'existing');
+
+        Process::assertNothingRan();
+        $this->assertSame('#EXTM3U', File::get($this->service->playlistPath('existing')));
+    }
+
+    public function test_vob_and_avi_keep_their_existing_audio_limits(): void
+    {
+        foreach (['vob' => 2, 'avi' => 1] as $extension => $count) {
+            Process::fake(['ffmpeg *' => Process::result("3\n"), '*' => Process::result()]);
+            $this->service->ensure($this->makeVideoFile('movie.' . $extension), $extension);
+            $command = $this->conversionCommand();
+            for ($i = 0; $i < $count; $i++) {
+                $this->assertStringContainsString("-map 0:a:$i", $command);
+            }
+            $this->assertStringNotContainsString("-map 0:a:$count", $command);
+        }
+    }
+
+    private function conversionCommand(): string
+    {
+        $command = '';
+        Process::assertRan(function ($process) use (&$command) {
+            if (!str_starts_with($process->command, 'nohup ')) {
+                return false;
+            }
+            $command = $process->command;
+            return true;
+        });
+
+        return $command;
     }
 
     public function test_progress_returns_null_if_files_missing(): void

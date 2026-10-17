@@ -40,7 +40,11 @@ function player(kind = 'mp4') {
     const elements = { 'legacy-video': video, 'playback-status': {}, 'progress-status': {} };
     for (const name of ['play', 'pause', 'rewind', 'forward', 'fullscreen']) elements[name] = {};
     if (kind === 'hls') {
-        for (const name of ['quality', 'audio']) elements[name] = { options: [{}], appendChild() {}, remove() {} };
+        for (const name of ['quality', 'audio']) elements[name] = {
+            options: [{}],
+            appendChild(option) { this.options.push(option); },
+            remove(index) { this.options.splice(index, 1); },
+        };
     }
     function XHR() { requests.push(this); }
     XHR.prototype.open = function (method, url) { this.method = method; this.url = url; };
@@ -48,7 +52,7 @@ function player(kind = 'mp4') {
     XHR.prototype.send = function (body) { this.body = body; };
     const context = {
         window: { addEventListener() {} }, navigator: {}, XMLHttpRequest: XHR,
-        document: { getElementById(id) { return elements[id]; }, querySelector() { return { getAttribute() { return 'csrf-test'; } }; } },
+        document: { getElementById(id) { return elements[id]; }, createElement() { return {}; }, querySelector() { return { getAttribute() { return 'csrf-test'; } }; } },
         setInterval(fn) { interval = fn; }, setTimeout() {},
     };
     return { context, elements, video, videoEvents, requests, tick() { interval(); } };
@@ -113,4 +117,34 @@ test('cold HLS cache HTML 404 keeps waiting rather than reporting an authenticat
     p.requests[1].responseText = '<!doctype html><html>Login</html>';
     p.requests[1].onload();
     assert.match(p.elements['playback-status'].textContent, /ログイン/);
+});
+
+test('all alternate audio tracks are selectable with language or numbered labels', () => {
+    const p = player('hls');
+    const events = {};
+    let instance;
+    function Hls() {
+        instance = this;
+        this.audioTracks = [{ lang: 'eng' }, { lang: 'jpn' }, { lang: 'und' }];
+    }
+    Hls.isSupported = () => true;
+    Hls.Events = { MANIFEST_PARSED: 'manifest', AUDIO_TRACKS_UPDATED: 'audio', ERROR: 'error' };
+    Hls.prototype.on = function (name, handler) { events[name] = handler; };
+    Hls.prototype.loadSource = function () {};
+    Hls.prototype.attachMedia = function () {};
+    p.context.Hls = p.context.window.Hls = Hls;
+    vm.runInNewContext(asset('player.js'), p.context);
+    p.elements.play.onclick();
+    p.requests[0].status = 200;
+    p.requests[0].responseText = '#EXTM3U\n';
+    p.requests[0].onload();
+    events.audio();
+    assert.deepEqual(p.elements.audio.options.slice(1).map(option => option.textContent), [
+        'eng / 音声 1', 'jpn / 音声 2', '音声 3',
+    ]);
+    p.elements.audio.value = '2';
+    p.elements.audio.onchange();
+    assert.equal(instance.audioTrack, 2);
+    events.audio();
+    assert.equal(p.elements.audio.options.length, 4, 'track refresh must replace existing options');
 });
