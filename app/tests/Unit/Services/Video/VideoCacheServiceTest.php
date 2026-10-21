@@ -104,6 +104,30 @@ class VideoCacheServiceTest extends TestCase
         }
     }
 
+    public function test_vob_audio_timestamps_are_corrected_before_aac_encoding(): void
+    {
+        Process::fake(['ffmpeg *' => Process::result("2\n"), '*' => Process::result()]);
+        $this->service->ensure($this->makeVideoFile('disc/VTS_01_1.VOB'), 'dvd-sync');
+
+        $command = $this->conversionCommand();
+        $this->assertStringContainsString('aresample=async=1', $command);
+        $this->assertStringContainsString('-map 0:a:0 -map 0:a:1', $command);
+        $this->assertStringNotContainsString('first_pts=0', $command);
+    }
+
+    public function test_audio_timestamp_correction_is_only_used_for_vob_with_audio(): void
+    {
+        foreach (['vob' => 0, 'avi' => 1, 'm2ts' => 1] as $extension => $count) {
+            Process::fake([
+                'ffprobe *-select_streams a*' => Process::result(json_encode(['streams' => [['index' => 1]]])),
+                'ffmpeg *' => Process::result("$count\n"),
+                '*' => Process::result(),
+            ]);
+            $this->service->ensure($this->makeVideoFile('no-filter.' . $extension), 'no-filter-' . $extension);
+            $this->assertStringNotContainsString('-af ', $this->conversionCommand());
+        }
+    }
+
     private function conversionCommand(): string
     {
         $command = '';

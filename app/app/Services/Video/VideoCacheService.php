@@ -232,7 +232,8 @@ class VideoCacheService
                 $vfLow,
                 $streamMap,
                 $outputDir,
-                $hlsFlags
+                $hlsFlags,
+                $ext === 'vob' ? 'aresample=async=1' : ''
             );
 
             $cmd = "nohup sh -c " . escapeshellarg($innerCmd) . " > " . escapeshellarg($ffmpegLogPath) . " 2>&1 & echo $! > " . escapeshellarg($pidFile);
@@ -320,13 +321,17 @@ class VideoCacheService
         string $vfLow,
         string $streamMap,
         string $outputDir,
-        string $hlsFlags
+        string $hlsFlags,
+        string $audioFilter
     ): string {
         return "touch " . escapeshellarg($lockFile) . " && ffmpeg -analyzeduration 100M -probesize 100M " . $inputArg . " " .
             $videoMaps . " " . $audioMaps . " " .
             "-c:v:0 libx264 -preset ultrafast -pix_fmt yuv420p -filter:v:0 " . $vfHigh . " " .
             "-c:v:1 libx264 -preset ultrafast -pix_fmt yuv420p -filter:v:1 " . $vfLow . " -b:v:1 800k -maxrate:v:1 1200k -bufsize:v:1 1600k " .
             ($audioMaps !== '' ? '-c:a aac -ac 2 -ar 44100 ' : '') .
+            // DVD audio timestamps can jitter by an AC-3 frame. Emit continuous
+            // sample timestamps before AAC encoding to avoid playback drift in HLS.
+            ($audioMaps !== '' && $audioFilter !== '' ? '-af ' . escapeshellarg($audioFilter) . ' ' : '') .
             '-f hls -hls_time 10 -hls_list_size 0 -hls_playlist_type event ' .
             '-master_pl_name index.m3u8 ' .
             '-hls_segment_filename ' . escapeshellarg($outputDir . '/s%v_%d.ts') . ' ' .
