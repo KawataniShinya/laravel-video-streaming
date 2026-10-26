@@ -14,6 +14,35 @@ Laravel + Inertia + Vue 3 で作った、ローカル動画ライブラリ兼ス
 - 管理者はユーザー管理と HLS キャッシュ管理を行えます
 - Google ログインにも対応していますが、登録済みメールアドレスのみ利用できます
 
+## PHP 8.5.12への更新（ver.1.1.4）
+
+PHPのセキュリティ更新として、`app`・`scheduler` 共通のベースイメージを `php:8.4.16-fpm-bookworm` から `php:8.5.12-fpm-bookworm` に変更しました。
+ロック済みComposer依存とXdebug 3.5.0はそのまま利用でき、アプリコードの互換修正は不要でした。
+
+既存環境への反映は、Dockerfileの更新だけでなくコンテナの再作成が必要です。
+
+```bash
+docker compose build --pull app scheduler
+docker compose up -d --no-deps app scheduler
+docker compose restart nginx-app
+docker compose exec app php -v
+docker compose exec scheduler php -v
+docker compose exec app composer check-platform-reqs --lock
+```
+
+PHP 8.5.12上でPHPの92テスト（601 assertions）、JavaScriptの6テスト、PHP構文チェック、PHP-FPM設定チェック、Vite本番ビルドが成功しています。
+隔離したPHP-FPM・nginx・SQLite環境と生成動画を使い、ヘッドレスChromeで以下を確認しました。
+
+- 通常表示・簡易表示のMP4/M2TS/AVI/FLV/VOB再生、音声・画質切替、シーク、一時停止、全画面
+- 履歴・再開位置、視聴済み切替、お気に入り登録・解除
+- ユーザー作成・編集・削除、フォルダのアクセス制限、管理画面と動画配信の権限確認
+- 新規登録、誤パスワード拒否、プロフィール・パスワード変更、ログ出力メールによるパスワードリセット、再ログイン、退会
+- HLSキャッシュの容量・完了状態・並び替え、単体・複数・全件削除、削除後の再生成・再生
+- 幅320pxでの簡易表示とユーザー管理画面
+
+更新後の実行環境では、`app`・`scheduler` のPHP 8.5.12、MySQL・Redis接続、スケジュール登録、ログイン画面のHTTP 200とヘッドレスChromeでの表示を確認しています。
+Google OAuthの外部サービス連携、実メール配信、FireStick実機、長時間の実動画再生は今回のブラウザ検証には含みません。
+
 ## VOBの音声同期補正（ver.1.1.3）
 
 - VOBをHLSへ変換する際、FFmpegの音声フィルター `aresample=async=1` で音声の時刻を補正します。一部のDVD由来VOBで、再生時間とともに音ズレが蓄積したり、定期的に音声が躓いたりする問題に対応しました。
