@@ -19,8 +19,12 @@ class ResolveUiMode
             Cookie::queue(cookie('ui_mode', 'legacy', 60 * 24 * 30, '/', null, $request->isSecure(), true, false, 'lax'));
         }
 
+        if ($legacy && !$request->isMethod('GET') && $request->is('playlists', 'playlists/*')) {
+            abort(403, 'プレイリストは通常表示で利用できます。');
+        }
+
         // These screens are outside the seven-template legacy interface.
-        if ($legacy && $request->isMethod('GET') && ($request->is('admin/*', 'profile', 'register', 'forgot-password', 'reset-password/*', 'verify-email', 'confirm-password'))) {
+        if ($legacy && $request->isMethod('GET') && ($request->is('playlists', 'playlists/*', 'admin/*', 'profile', 'register', 'forgot-password', 'reset-password/*', 'verify-email', 'confirm-password'))) {
             return redirect($request->user() ? '/dashboard' : '/login')
                 ->with('status', 'この画面は通常表示で利用できます。必要な場合は通常表示に切り替えてください。');
         }

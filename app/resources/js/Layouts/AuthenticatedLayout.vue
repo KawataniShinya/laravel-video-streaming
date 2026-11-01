@@ -30,7 +30,7 @@ const showingNavigationDropdown = ref(false);
 
                             <!-- Navigation Links -->
                             <div
-                                class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex"
+                                class="hidden space-x-8 sm:-my-px sm:ms-10 xl:flex"
                             >
                                 <NavLink
                                     :href="route('videos.index')"
@@ -51,6 +51,8 @@ const showingNavigationDropdown = ref(false);
                                     History
                                 </NavLink>
 
+                                <NavLink :href="route('playlists.index')" :active="route().current('playlists.*')">Playlists</NavLink>
+
                                 <!-- Admin Only Tabs -->
                                 <div v-if="$page.props.auth.user.role === 'admin'" class="flex space-x-8 border-l border-gray-200 ml-4 ps-8">
                                     <NavLink
@@ -69,7 +71,7 @@ const showingNavigationDropdown = ref(false);
                             </div>
                         </div>
 
-                        <div class="hidden sm:ms-6 sm:flex sm:items-center">
+                        <div class="hidden sm:ms-6 xl:flex sm:items-center">
                             <!-- Settings Dropdown -->
                             <div class="relative ms-3">
                                 <Dropdown align="right" width="48">
@@ -116,7 +118,7 @@ const showingNavigationDropdown = ref(false);
                         </div>
 
                         <!-- Hamburger -->
-                        <div class="-me-2 flex items-center sm:hidden">
+                        <div class="-me-2 flex items-center xl:hidden">
                             <button
                                 @click="
                                     showingNavigationDropdown =
@@ -164,7 +166,7 @@ const showingNavigationDropdown = ref(false);
                         block: showingNavigationDropdown,
                         hidden: !showingNavigationDropdown,
                     }"
-                    class="sm:hidden"
+                    class="xl:hidden"
                 >
                     <div class="space-y-1 pb-3 pt-2">
                         <ResponsiveNavLink
@@ -186,6 +188,8 @@ const showingNavigationDropdown = ref(false);
                             History
                         </ResponsiveNavLink>
                     </div>
+
+                    <ResponsiveNavLink :href="route('playlists.index')" :active="route().current('playlists.*')">Playlists</ResponsiveNavLink>
 
                     <!-- Responsive Admin Options -->
                     <div v-if="$page.props.auth.user.role === 'admin'" class="border-t border-gray-200 pb-1 pt-4">

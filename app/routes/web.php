@@ -38,6 +38,10 @@ Route::middleware('auth')->group(function () {
     Route::post('/videos/watched/toggle', [VideoController::class, 'toggleWatchStatus'])->name('videos.watched.toggle');
     Route::post('/videos/progress', [VideoController::class, 'updateProgress'])->name('videos.progress');
 
+    Route::resource('playlists', \App\Http\Controllers\PlaylistController::class)->except('show');
+    Route::get('/playlists/{playlist}/watch/{item}', [\App\Http\Controllers\PlaylistController::class, 'watch'])->name('playlists.watch');
+    Route::get('/playlists/{playlist}/next/{item}', [\App\Http\Controllers\PlaylistController::class, 'next'])->name('playlists.next');
+
     // Favorites
     Route::get('/favorites', [FavoriteController::class, 'index'])->name('favorites.index');
     Route::post('/favorites/toggle', [FavoriteController::class, 'toggle'])->name('favorites.toggle');
