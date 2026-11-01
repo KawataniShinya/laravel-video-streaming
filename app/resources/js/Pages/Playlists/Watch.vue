@@ -1,4 +1,5 @@
 <script setup>
+import VideoProgress from '@/Components/VideoProgress.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import WatchedBadge from '@/Components/WatchedBadge.vue';
 import VideoPlayer from '@/Components/VideoPlayer.vue';
@@ -33,6 +34,7 @@ defineProps({ playlist: Object, currentItem: Number, hasNext: Boolean, filename:
                                 <WatchedBadge :watched="item.is_watched" />
                                 <strong v-if="item.id === currentItem" class="text-sm">Now Playing</strong>
                             </div>
+                            <VideoProgress v-if="item.playable" :percent="item.progress_percent" />
                         </li>
                     </ol>
                 </aside>

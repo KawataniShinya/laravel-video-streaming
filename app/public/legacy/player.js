@@ -29,11 +29,13 @@
     function saveProgress(unloading) {
         var time = Math.floor(video.currentTime || 0);
         if (time <= 0 || time === lastSaved || (saveRequest && !unloading)) { return; }
+        var duration = !isHls && isFinite(video.duration) && video.duration > 0 ? video.duration : null;
         if (unloading && navigator.sendBeacon && window.FormData) {
             var data = new FormData();
             data.append('_token', token);
             data.append('path', path);
             data.append('time', time);
+            if (duration !== null) { data.append('duration', duration); }
             if (navigator.sendBeacon('/videos/progress', data)) { return; }
         }
         var xhr = new XMLHttpRequest();
@@ -50,7 +52,7 @@
             saveRequest = null;
         };
         xhr.onerror = xhr.ontimeout = function () { saveRequest = null; progressStatus.textContent = '再生位置を保存できません。通信状態を確認してください。'; };
-        xhr.send('_token=' + encodeURIComponent(token) + '&path=' + encodeURIComponent(path) + '&time=' + time);
+        xhr.send('_token=' + encodeURIComponent(token) + '&path=' + encodeURIComponent(path) + '&time=' + time + (duration !== null ? '&duration=' + duration : ''));
     }
     function setOptions(select, values, label) {
         while (select.options.length > 1) { select.remove(1); }

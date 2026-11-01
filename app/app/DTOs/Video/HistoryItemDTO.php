@@ -13,12 +13,14 @@ final class HistoryItemDTO implements JsonSerializable
         public readonly int $lastPosition,
         public readonly string $updatedAt,
         public readonly string $updatedAtHuman,
+        public readonly ?float $progressPercent = null,
     ) {
     }
 
     public function jsonSerialize(): array
     {
         return [
+            'progress_percent' => $this->progressPercent,
             'id' => $this->id,
             'name' => $this->name,
             'path' => $this->path,

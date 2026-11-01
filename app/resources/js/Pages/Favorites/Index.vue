@@ -1,4 +1,5 @@
 <script setup>
+import VideoProgress from '@/Components/VideoProgress.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import FavoriteToggle from '@/Components/FavoriteToggle.vue';
 import { Head, Link } from '@inertiajs/vue3';
@@ -83,6 +84,7 @@ const formatTime = (seconds) => {
                                             <FavoriteToggle :path="item.path" :type="item.type" :is-favorited="true" />
                                         </div>
                                     </div>
+                                    <div v-if="item.type === 'file'" class="px-6 pb-3"><VideoProgress :percent="item.progress_percent" /></div>
                                 </li>
                             </ul>
                         </div>

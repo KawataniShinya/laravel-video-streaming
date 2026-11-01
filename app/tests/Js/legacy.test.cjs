@@ -75,6 +75,7 @@ test('old play() return value works; resume and progress use CSRF-protected requ
     assert.equal(body.get('_token'), 'csrf-test');
     assert.equal(body.get('path'), 'movies/日本語 #1.mp4');
     assert.equal(body.get('time'), '72');
+    assert.equal(body.get('duration'), '300');
     request.status = 419;
     request.onload();
     assert.match(p.elements['progress-status'].textContent, /ログイン/);

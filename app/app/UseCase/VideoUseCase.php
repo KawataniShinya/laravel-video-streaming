@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Repositories\Interfaces\FavoriteRepositoryInterface;
 use App\Repositories\Interfaces\VideoRepositoryInterface;
 use App\Repositories\Interfaces\VideoViewRepositoryInterface;
+use App\Services\Video\VideoProgressService;
 use App\Services\Video\UserAccessService;
 use App\Services\Video\VideoCacheService;
 use App\Services\Video\VideoPathService;
@@ -26,6 +27,7 @@ class VideoUseCase
         private readonly UserAccessService $accessService,
         private readonly VideoPathService $pathService,
         private readonly VideoCacheService $cacheService,
+        private readonly VideoProgressService $progress,
     ) {
     }
 
@@ -72,7 +74,9 @@ class VideoUseCase
             $video = $this->videoRepository->firstOrCreateByPath($relativePath, 'file');
             $isCached = in_array($ext, ['m2ts', 'avi', 'flv', 'vob'], true) && $this->cacheService->isCached($video->hash);
 
+            $view = $this->videoViewRepository->findForUserAndVideo($user, $video);
             $items[] = new VideoItemDTO(
+                progressPercent: $this->progress->percentage($video, (int) ($view?->last_position ?? 0)),
                 id: $video->id,
                 type: 'file',
                 name: $file->getFilename(),
@@ -80,7 +84,7 @@ class VideoUseCase
                 ext: $ext,
                 size: $this->formatBytes($file->getSize()),
                 isCached: $isCached,
-                isWatched: $this->videoViewRepository->findForUserAndVideo($user, $video) !== null,
+                isWatched: $view !== null,
                 isFavorited: $this->favoriteRepository->existsForUserAndVideo($user, $video),
             );
         }
@@ -107,6 +111,7 @@ class VideoUseCase
             }
 
             $items[$index] = new VideoItemDTO(
+                progressPercent: $item->progressPercent,
                 id: $item->id,
                 type: $item->type,
                 name: $item->name,
@@ -142,6 +147,7 @@ class VideoUseCase
                 name: basename($video->path),
                 path: $video->path,
                 lastPosition: (int) $view->last_position,
+                progressPercent: $this->progress->percentage($video, (int) $view->last_position),
                 updatedAt: $view->updated_at->format('Y-m-d H:i'),
                 updatedAtHuman: $view->updated_at->diffForHumans(),
             );
@@ -183,12 +189,17 @@ class VideoUseCase
         );
     }
 
-    public function updateProgress(User $user, string $path, int $time): void
+    public function updateProgress(User $user, string $path, int $time, ?float $duration = null): void
     {
         $path = rawurldecode($path);
         $video = $this->videoRepository->findByPath($path);
         if (!$video) {
             return;
+        }
+
+        if ($duration !== null && strtolower(pathinfo($video->path, PATHINFO_EXTENSION)) === 'mp4') {
+            $video->duration = $duration;
+            $video->save();
         }
 
         $this->videoViewRepository->updateProgress($user, $video, $time);

@@ -6,6 +6,7 @@
             <li>
                 <a class="item-link" href="/watch/{{ implode('/', array_map('rawurlencode', explode('/', $item['path']))) }}">{{ $item['name'] }}</a>
                 <p class="details">再生位置 {{ gmdate('H:i:s', $item['last_position']) }} / 最終視聴 {{ $item['updated_at'] }}</p>
+                @include('legacy.videos.progress')
             </li>
         @empty
             <li>視聴履歴はまだありません。<a href="/videos">動画一覧を開く</a></li>

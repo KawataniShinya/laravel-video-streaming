@@ -106,7 +106,12 @@ class VideoController extends Controller
             return response()->json(['status' => 'error'], 400);
         }
 
-        $this->videoUseCase->updateProgress($user, $path, (int) $time);
+        $validated = $request->validate([
+            'time' => ['required', 'numeric', 'min:0', 'max:2147483647'],
+            'duration' => ['nullable', 'numeric', 'gt:0', 'max:2147483647'],
+        ]);
+        $this->videoUseCase->updateProgress($user, $path, (int) $time,
+            isset($validated['duration']) ? (float) $validated['duration'] : null);
 
         return response()->json(['status' => 'success']);
     }
