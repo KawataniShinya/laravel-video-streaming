@@ -16,12 +16,14 @@ final class FavoriteItemDTO implements JsonSerializable
         public readonly bool $isWatched,
         public readonly int $lastPosition,
         public readonly bool $isFavorited = true,
+        public readonly ?float $progressPercent = null,
     ) {
     }
 
     public function jsonSerialize(): array
     {
         return [
+            'progress_percent' => $this->progressPercent,
             'id' => $this->id,
             'type' => $this->type,
             'name' => $this->name,

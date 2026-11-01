@@ -1,4 +1,5 @@
 <script setup>
+import VideoProgress from '@/Components/VideoProgress.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link } from '@inertiajs/vue3';
 
@@ -62,6 +63,7 @@ const formatTime = (seconds) => {
                                             <svg class="w-5 h-5 text-gray-400 ml-2 group-hover:text-blue-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
                                         </div>
                                     </Link>
+                                    <div class="px-6 pb-3"><VideoProgress :percent="item.progress_percent" /></div>
                                 </li>
                             </ul>
                         </div>

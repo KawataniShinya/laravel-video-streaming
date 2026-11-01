@@ -69,7 +69,8 @@ const saveProgress = (time) => {
 
     axios.post(route('videos.progress'), {
         path: props.path,
-        time: Math.floor(time)
+        time: Math.floor(time),
+        duration: !props.hash && Number.isFinite(video.value?.duration) && video.value.duration > 0 ? video.value.duration : null
     }).catch(() => { progressError.value = true; });
 };
 

@@ -1,4 +1,5 @@
 <script setup>
+import VideoProgress from '@/Components/VideoProgress.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import WatchedBadge from '@/Components/WatchedBadge.vue';
 import { Head, Link, router } from '@inertiajs/vue3';
@@ -28,11 +29,14 @@ const remove = playlist => {
                     <summary class="cursor-pointer py-2">Show Videos</summary>
                     <p v-if="!playlist.items.length" class="py-2 text-gray-600">No videos yet. Edit this playlist to add videos.</p>
                     <ol class="divide-y">
-                        <li v-for="(item, index) in playlist.items" :key="item.id" class="py-3 flex gap-3 items-start">
-                            <span>{{ index + 1 }}.</span>
-                            <Link v-if="item.playable" :href="route('playlists.watch', { playlist: playlist.id, item: item.id })" class="text-blue-700 underline break-all">{{ item.name }}</Link>
-                            <span v-else class="text-gray-500 break-all">{{ item.name }} (Unavailable)</span>
-                            <WatchedBadge :watched="item.is_watched" />
+                        <li v-for="(item, index) in playlist.items" :key="item.id" class="py-3">
+                            <div class="flex gap-3 items-start">
+                                <span>{{ index + 1 }}.</span>
+                                <Link v-if="item.playable" :href="route('playlists.watch', { playlist: playlist.id, item: item.id })" class="text-blue-700 underline break-all">{{ item.name }}</Link>
+                                <span v-else class="text-gray-500 break-all">{{ item.name }} (Unavailable)</span>
+                                <WatchedBadge :watched="item.is_watched" />
+                            </div>
+                            <VideoProgress v-if="item.playable" :percent="item.progress_percent" />
                         </li>
                     </ol>
                 </details>

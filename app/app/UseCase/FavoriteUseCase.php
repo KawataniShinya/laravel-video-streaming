@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Repositories\Interfaces\FavoriteRepositoryInterface;
 use App\Repositories\Interfaces\VideoRepositoryInterface;
 use App\Repositories\Interfaces\VideoViewRepositoryInterface;
+use App\Services\Video\VideoProgressService;
 use App\Services\Video\VideoCacheService;
 
 class FavoriteUseCase
@@ -17,6 +18,7 @@ class FavoriteUseCase
         private readonly VideoRepositoryInterface $videoRepository,
         private readonly VideoViewRepositoryInterface $videoViewRepository,
         private readonly VideoCacheService $cacheService,
+        private readonly VideoProgressService $progress,
     ) {
     }
 
@@ -46,6 +48,7 @@ class FavoriteUseCase
                 ext: $ext,
                 isCached: $isCached,
                 isWatched: $view !== null,
+                progressPercent: $this->progress->percentage($video, (int) ($view?->last_position ?? 0)),
                 lastPosition: $view ? (int) $view->last_position : 0,
             );
         }

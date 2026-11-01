@@ -15,6 +15,7 @@
                 <a class="item-link" href="/{{ $item['type'] === 'folder' ? 'videos' : 'watch' }}/{{ implode('/', array_map('rawurlencode', explode('/', $item['path']))) }}">{{ $item['type'] === 'folder' ? 'フォルダ: ' : '' }}{{ $item['name'] }}</a>
                 @if ($item['type'] === 'file')
                     <p class="details">{{ $item['size'] }} {{ $item['is_cached'] ? ' / 変換済み' : '' }} {{ $item['is_watched'] ? ' / 視聴済み' : '' }}</p>
+                    @include('legacy.videos.progress')
                 @endif
                 <form method="post" action="/favorites/toggle" class="inline">
                     @csrf<input type="hidden" name="path" value="{{ $item['path'] }}"><input type="hidden" name="type" value="{{ $item['type'] }}">

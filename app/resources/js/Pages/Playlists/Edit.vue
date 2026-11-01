@@ -1,4 +1,5 @@
 <script setup>
+import VideoProgress from '@/Components/VideoProgress.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import { ref, computed } from 'vue';
@@ -15,7 +16,7 @@ const browse = path => props.playlist
     : route('playlists.create', { path });
 const contains = item => selected.value.some(row => row.video_id === item.id);
 const add = item => {
-    if (!contains(item)) selected.value.push({ video_id: item.id, name: item.name, path: item.path, playable: true });
+    if (!contains(item)) selected.value.push({ video_id: item.id, name: item.name, path: item.path, playable: true, progress_percent: item.progress_percent });
 };
 const move = (index, offset) => {
     const target = index + offset;
@@ -60,7 +61,7 @@ const save = () => {
                         <li v-for="item in items" :key="item.id" class="py-3 flex items-center gap-3">
                             <Link v-if="item.type === 'folder'" preserve-state :href="browse(item.path)" class="text-blue-700 underline break-all">📁 {{ item.name }}</Link>
                             <template v-else>
-                                <span class="flex-1 break-all">{{ item.name }}</span>
+                                <div class="flex-1 min-w-0"><span class="break-all">{{ item.name }}</span><VideoProgress :percent="item.progress_percent" /></div>
                                 <button type="button" @click="add(item)" :disabled="contains(item)" :aria-label="`Add ${item.name}`" class="shrink-0 rounded bg-blue-700 text-white px-3 py-2 disabled:bg-gray-500">{{ contains(item) ? 'Added' : 'Add' }}</button>
                             </template>
                         </li>
@@ -73,6 +74,7 @@ const save = () => {
                         <li v-for="(item, index) in selected" :key="item.id ? `item-${item.id}` : `video-${item.video_id}`" class="py-3 space-y-2">
                             <p class="break-all">{{ index + 1 }}. {{ item.name }}{{ item.playable ? '' : ' (Unavailable)' }}</p>
                             <p v-if="item.path" class="text-xs text-gray-500 break-all">{{ item.path }}</p>
+                            <VideoProgress v-if="item.playable" :percent="item.progress_percent" />
                             <div class="flex flex-wrap gap-3">
                                 <button type="button" @click="move(index, -1)" :disabled="index === 0" :aria-label="`Move ${item.name} up`" class="px-3 py-2 border rounded disabled:opacity-40">Move Up</button>
                                 <button type="button" @click="move(index, 1)" :disabled="index === selected.length - 1" :aria-label="`Move ${item.name} down`" class="px-3 py-2 border rounded disabled:opacity-40">Move Down</button>

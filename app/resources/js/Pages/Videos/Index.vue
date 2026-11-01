@@ -1,4 +1,5 @@
 <script setup>
+import VideoProgress from '@/Components/VideoProgress.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import FavoriteToggle from '@/Components/FavoriteToggle.vue';
 import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
@@ -156,6 +157,7 @@ const getParentPath = (path) => {
                                                 </button>
                                             </div>
                                         </div>
+                                        <div v-if="!(item.ext === 'vob' && item.name.toUpperCase() !== 'VTS_01_1.VOB')" class="px-6 pb-3"><VideoProgress :percent="item.progress_percent" /></div>
                                     </template>
                                 </li>
                             </ul>

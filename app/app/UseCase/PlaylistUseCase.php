@@ -6,6 +6,7 @@ use App\Models\Playlist;
 use App\Models\User;
 use App\Models\Video;
 use App\Models\VideoView;
+use App\Services\Video\VideoProgressService;
 use App\Services\Video\UserAccessService;
 use App\Services\Video\VideoPathService;
 use Illuminate\Support\Facades\DB;
@@ -13,7 +14,7 @@ use Illuminate\Validation\ValidationException;
 
 class PlaylistUseCase
 {
-    public function __construct(private UserAccessService $access, private VideoPathService $paths) {}
+    public function __construct(private UserAccessService $access, private VideoPathService $paths, private VideoProgressService $progress) {}
 
     public function playable(User $user, ?Video $video): bool
     {
@@ -31,7 +32,7 @@ class PlaylistUseCase
     {
         $playlist->load('items.video');
         $watched = VideoView::where('user_id', $user->id)
-            ->whereIn('video_id', $playlist->items->pluck('video_id'))->pluck('video_id')->flip();
+            ->whereIn('video_id', $playlist->items->pluck('video_id'))->get()->keyBy('video_id');
 
         return [
             'id' => $playlist->id, 'name' => $playlist->name,
@@ -44,6 +45,7 @@ class PlaylistUseCase
                     'name' => $visible ? basename($video->path) : 'Unavailable',
                     'path' => $visible ? $video->path : null,
                     'playable' => $this->playable($user, $video),
+                    'progress_percent' => $visible ? $this->progress->percentage($video, (int) ($watched->get($video->id)?->last_position ?? 0)) : null,
                     'is_watched' => $visible && $watched->has($video->id),
                 ];
             })->values()->all(),
