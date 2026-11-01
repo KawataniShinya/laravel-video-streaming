@@ -18,7 +18,7 @@ import { Head, Link } from '@inertiajs/vue3';
                 <!-- Welcome Section -->
                 <div class="mb-8 px-4 sm:px-0">
                     <h3 class="text-2xl font-bold text-gray-900">Welcome back, {{ $page.props.auth.user.name }}!</h3>
-                    <p class="mt-1 text-sm text-gray-500">Access your library, favorites, and history from here.</p>
+                    <p class="mt-1 text-sm text-gray-500">Access your library, playlists, favorites, and history from here.</p>
                 </div>
 
                 <!-- Media Section -->
@@ -28,7 +28,7 @@ import { Head, Link } from '@inertiajs/vue3';
                         <h4 class="text-lg font-bold text-gray-800 uppercase tracking-wider">Media Content</h4>
                     </div>
                     
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
                         <!-- Video Library -->
                         <Link :href="route('videos.index')" class="group bg-white overflow-hidden shadow-sm sm:rounded-xl border border-gray-100 hover:shadow-md transition-all duration-200">
                             <div class="p-6">
@@ -42,6 +42,23 @@ import { Head, Link } from '@inertiajs/vue3';
                                 <div class="mt-4 flex items-center text-blue-600 text-sm font-semibold">
                                     Browse now
                                     <svg class="w-4 h-4 ml-1 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                                </div>
+                            </div>
+                        </Link>
+
+                        <!-- Playlists -->
+                        <Link :href="route('playlists.index')" class="group bg-white overflow-hidden shadow-sm sm:rounded-xl border border-gray-100 hover:shadow-md transition-all duration-200">
+                            <div class="p-6">
+                                <div class="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-lg flex items-center justify-center mb-4 group-hover:bg-indigo-600 group-hover:text-white transition-colors duration-200">
+                                    <svg aria-hidden="true" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h8M4 18h8m4-7 6 4-6 4v-8z"></path>
+                                    </svg>
+                                </div>
+                                <h5 class="text-lg font-bold text-gray-900">Playlists</h5>
+                                <p class="mt-2 text-sm text-gray-500">Create your own playlists and watch videos in your preferred order.</p>
+                                <div class="mt-4 flex items-center text-indigo-600 text-sm font-semibold">
+                                    View playlists
+                                    <svg aria-hidden="true" class="w-4 h-4 ml-1 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
                                 </div>
                             </div>
                         </Link>

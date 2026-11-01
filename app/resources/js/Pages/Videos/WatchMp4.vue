@@ -1,86 +1,13 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import FavoriteToggle from '@/Components/FavoriteToggle.vue';
+import VideoPlayer from '@/Components/VideoPlayer.vue';
 import { Head, Link } from '@inertiajs/vue3';
-import { computed, ref, onMounted, onBeforeUnmount } from 'vue';
-
-const props = defineProps({
-    filename: {
-        type: String,
-        required: true,
-    },
-    path: {
-        type: String,
-        required: true,
-    },
-    lastPosition: {
-        type: Number,
-        default: 0,
-    },
-    isFavorited: {
-        type: Boolean,
-        default: false,
-    },
-    breadcrumbs: {
-        type: Array,
-        default: () => [],
-    }
-});
-
-const video = ref(null);
-let updateInterval = null;
-
-const playVideo = () => {
-    const v = video.value;
-    if (!v) return;
-
-    v.play().catch(error => {
-        console.warn("Autoplay was prevented by browser:", error);
-    });
-};
-
+import { computed } from 'vue';
+const props = defineProps({ filename: String, path: String, hash: { type: String, default: null }, lastPosition: Number, isFavorited: Boolean, isCached: Boolean, breadcrumbs: { type: Array, default: () => [] } });
 const backLink = computed(() => {
-    if (!props.path) return route('videos.index');
-    const parts = props.path.split('/');
-    parts.pop(); // Remove filename
-    const dir = parts.join('/');
+    const dir = props.path.split('/').slice(0, -1).join('/');
     return dir ? route('videos.index', { path: dir }) : route('videos.index');
-});
-
-const saveProgress = (time) => {
-    if (!time || time <= 0) return;
-
-    axios.post(route('videos.progress'), {
-        path: props.path,
-        time: Math.floor(time)
-    });
-};
-
-onMounted(() => {
-    const v = video.value;
-    if (v && props.lastPosition > 0) {
-        v.currentTime = props.lastPosition;
-    }
-    playVideo();
-
-    // Save every 10 seconds
-    updateInterval = setInterval(() => {
-        if (v && !v.paused) {
-            saveProgress(v.currentTime);
-        }
-    }, 10000);
-
-    if (v) {
-        v.addEventListener('pause', () => saveProgress(v.currentTime));
-    }
-});
-
-onBeforeUnmount(() => {
-    if (updateInterval) clearInterval(updateInterval);
-    const v = video.value;
-    if (v) {
-        saveProgress(v.currentTime);
-    }
 });
 </script>
 
@@ -128,10 +55,7 @@ onBeforeUnmount(() => {
                             <Link :href="backLink" class="text-blue-600 hover:text-blue-800">&larr; Back to Folder</Link>
                         </div>
 
-                        <video ref="video" controls autoplay class="w-full shadow-lg rounded">
-                            <source :src="route('videos.stream', { path: path })" type="video/mp4">
-                            Your browser does not support the video tag.
-                        </video>
+                        <VideoPlayer :key="path" :path="path" :hash="hash" :last-position="lastPosition" :is-cached="isCached" />
                     </div>
                 </div>
             </div>
