@@ -189,12 +189,12 @@ class VideoUseCase
         );
     }
 
-    public function updateProgress(User $user, string $path, int $time, ?float $duration = null): void
+    public function updateProgress(User $user, string $path, int $time, ?float $duration = null): ?float
     {
         $path = rawurldecode($path);
         $video = $this->videoRepository->findByPath($path);
         if (!$video) {
-            return;
+            return null;
         }
 
         if ($duration !== null && strtolower(pathinfo($video->path, PATHINFO_EXTENSION)) === 'mp4') {
@@ -203,6 +203,8 @@ class VideoUseCase
         }
 
         $this->videoViewRepository->updateProgress($user, $video, $time);
+
+        return $this->progress->percentage($video, $time);
     }
 
     public function toggleWatched(User $user, string $path): void

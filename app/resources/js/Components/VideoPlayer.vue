@@ -3,6 +3,9 @@ import { ref, onMounted, onBeforeUnmount } from 'vue';
 import Hls from 'hls.js';
 import { resumePosition } from '@/videoPlayback.js';
 const props = defineProps({ path: { type: String, required: true }, hash: { type: String, default: null }, lastPosition: { type: Number, default: 0 }, isCached: Boolean });
+const emit = defineEmits(['progress-saved']);
+let saveSequence = 0;
+let disposed = false;
 const needsPlay = ref(false);
 const progressError = ref(false);
 let hasPlayed = false;
@@ -67,11 +70,18 @@ const saveProgress = (time) => {
     // Only persist zero after playback actually started.
     if (!Number.isFinite(time) || time < 0 || (time === 0 && !hasPlayed)) return;
 
+    const sequence = ++saveSequence;
     axios.post(route('videos.progress'), {
         path: props.path,
         time: Math.floor(time),
         duration: !props.hash && Number.isFinite(video.value?.duration) && video.value.duration > 0 ? video.value.duration : null
-    }).catch(() => { progressError.value = true; });
+    }).then(({ data }) => {
+        if (disposed || sequence !== saveSequence) return;
+        progressError.value = false;
+        emit('progress-saved', { path: props.path, percent: data.progress_percent });
+    }).catch(() => {
+        if (!disposed && sequence === saveSequence) progressError.value = true;
+    });
 };
 
 onMounted(() => {
@@ -82,6 +92,7 @@ onMounted(() => {
     v.addEventListener('loadedmetadata', restorePosition);
     v.addEventListener('playing', () => { hasPlayed = true; needsPlay.value = false; });
     v.addEventListener('ended', () => saveProgress(v.currentTime));
+    v.addEventListener('seeked', () => { if (hasPlayed) saveProgress(v.currentTime); });
     if (!props.hash) {
         v.src = videoSrc;
         v.addEventListener('loadedmetadata', playVideo);
@@ -148,6 +159,7 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+    disposed = true;
     if (updateInterval) clearInterval(updateInterval);
     if (countdownInterval) clearInterval(countdownInterval);
     const v = video.value;
