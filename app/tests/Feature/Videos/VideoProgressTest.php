@@ -29,7 +29,7 @@ class VideoProgressTest extends TestCase
 
         $this->actingAs($user)->postJson(route('videos.progress'), [
             'path' => $video->path, 'time' => 50, 'duration' => 200,
-        ])->assertOk();
+        ])->assertOk()->assertJsonPath('progress_percent', 25);
         $this->assertEquals(200, $video->fresh()->duration);
 
         foreach ([route('videos.index', ['path' => 'movies']), route('videos.history'), route('favorites.index')] as $url) {
@@ -62,7 +62,7 @@ class VideoProgressTest extends TestCase
         ]);
         $this->actingAs($user)->postJson(route('videos.progress'), [
             'path' => $video->path, 'time' => 1111, 'duration' => 1111,
-        ])->assertOk();
+        ])->assertOk()->assertJsonPath('progress_percent', 38.9);
         $this->assertEquals(38.9, app(VideoProgressService::class)->percentage($video->fresh(), 1111));
         $this->assertEquals(38.9, $this->get(route('videos.history'))->inertiaProps('items.0.progress_percent'));
         $this->assertEquals(38.9, $this->get(route('videos.index', ['path' => 'movies']))->inertiaProps('items.0.progress_percent'));
@@ -82,6 +82,22 @@ class VideoProgressTest extends TestCase
         file_put_contents($cache.'/pHigh.m3u8', "#EXT-X-ENDLIST\n", FILE_APPEND);
         file_put_contents($cache.'/transcoding.lock', '');
         $this->assertNull($service->percentage($video, 1111));
+    }
+
+    public function test_progress_response_tracks_finish_rewind_and_unknown_duration(): void
+    {
+        $user = User::factory()->create();
+        $user->allowedPaths()->create(['path' => 'movies']);
+        $video = Video::create(['path' => 'movies/main.mp4', 'hash' => md5('movies/main.mp4'), 'type' => 'file']);
+        $this->actingAs($user)->postJson(route('videos.progress'), [
+            'path' => $video->path, 'time' => 10,
+        ])->assertOk()->assertJsonPath('progress_percent', null);
+        $this->postJson(route('videos.progress'), [
+            'path' => $video->path, 'time' => 200, 'duration' => 200.8,
+        ])->assertOk()->assertJsonPath('progress_percent', 100);
+        $this->postJson(route('videos.progress'), [
+            'path' => $video->path, 'time' => 0,
+        ])->assertOk()->assertJsonPath('progress_percent', 0);
     }
 
     public function test_unknown_duration_and_percentage_bounds(): void

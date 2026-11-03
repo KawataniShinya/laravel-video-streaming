@@ -5,7 +5,15 @@ import WatchedBadge from '@/Components/WatchedBadge.vue';
 import VideoPlayer from '@/Components/VideoPlayer.vue';
 import FavoriteToggle from '@/Components/FavoriteToggle.vue';
 import { Head, Link } from '@inertiajs/vue3';
-defineProps({ playlist: Object, currentItem: Number, hasNext: Boolean, filename: String, path: String, hash: String, lastPosition: Number, isCached: Boolean, isFavorited: Boolean });
+import { ref, watch } from 'vue';
+const props = defineProps({ playlist: Object, currentItem: Number, hasNext: Boolean, filename: String, path: String, hash: String, lastPosition: Number, isCached: Boolean, isFavorited: Boolean });
+const currentProgress = ref(undefined);
+watch(() => [props.playlist, props.currentItem, props.path, props.lastPosition], () => {
+    currentProgress.value = undefined;
+});
+const updateProgress = ({ path, percent }) => {
+    if (path === props.path) currentProgress.value = percent;
+};
 </script>
 <template>
     <Head :title="`${filename} — ${playlist.name}`" />
@@ -19,7 +27,7 @@ defineProps({ playlist: Object, currentItem: Number, hasNext: Boolean, filename:
                         <h3 class="font-bold break-all">{{ filename }}</h3>
                         <FavoriteToggle :key="path" :path="path" type="file" :is-favorited="isFavorited" />
                     </div>
-                    <VideoPlayer :key="`${currentItem}:${path}:${lastPosition}`" :path="path" :hash="hash" :last-position="lastPosition" :is-cached="isCached" />
+                    <VideoPlayer :key="`${currentItem}:${path}:${lastPosition}`" :path="path" :hash="hash" :last-position="lastPosition" :is-cached="isCached" @progress-saved="updateProgress" />
                     <Link v-if="hasNext" :href="route('playlists.next', { playlist: playlist.id, item: currentItem })" class="inline-block mt-4 bg-blue-700 text-white px-4 py-2 rounded">Play Next</Link>
                     <button v-else disabled class="mt-4 bg-gray-200 text-gray-600 px-4 py-2 rounded">Play Next (End of Playlist)</button>
                 </section>
@@ -34,7 +42,7 @@ defineProps({ playlist: Object, currentItem: Number, hasNext: Boolean, filename:
                                 <WatchedBadge :watched="item.is_watched" />
                                 <strong v-if="item.id === currentItem" class="text-sm">Now Playing</strong>
                             </div>
-                            <VideoProgress v-if="item.playable" :percent="item.progress_percent" />
+                            <VideoProgress v-if="item.playable" :percent="item.id === currentItem && currentProgress !== undefined ? currentProgress : item.progress_percent" />
                         </li>
                     </ol>
                 </aside>

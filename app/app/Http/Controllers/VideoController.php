@@ -110,10 +110,10 @@ class VideoController extends Controller
             'time' => ['required', 'numeric', 'min:0', 'max:2147483647'],
             'duration' => ['nullable', 'numeric', 'gt:0', 'max:2147483647'],
         ]);
-        $this->videoUseCase->updateProgress($user, $path, (int) $time,
+        $percent = $this->videoUseCase->updateProgress($user, $path, (int) $time,
             isset($validated['duration']) ? (float) $validated['duration'] : null);
 
-        return response()->json(['status' => 'success']);
+        return response()->json(['status' => 'success', 'progress_percent' => $percent]);
     }
 
     public function serveHls($hash, $file)
